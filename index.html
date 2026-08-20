@@ -42,6 +42,8 @@ h2:first-child{margin-top:6px}
 .hero .sub{font-size:14px;color:var(--dim);margin-top:8px}
 .hero.go{background:linear-gradient(160deg,#3a1f22,#241417);border-color:#5e2c30}
 .hero.go .big{color:var(--ng)}
+.hero .big.ok{color:var(--ok)}
+.hero .big .pre{font-size:15px;color:var(--dim);font-weight:600;letter-spacing:0;margin-right:10px}
 .bar{height:6px;background:#252d37;border-radius:99px;overflow:hidden;margin-top:12px}
 .bar i{display:block;height:100%;border-radius:99px;transition:width .4s}
 .ldg{margin-top:14px;border-top:1px solid #2c3947;padding-top:10px}
@@ -51,8 +53,8 @@ h2:first-child{margin-top:6px}
 .lr.mv{color:var(--acc);font-size:13px}
 .lr.mv i{font-style:normal;font-size:11px;color:var(--dim2)}
 .lr.tot{border-top:1px dashed #33404e;margin-top:6px;padding-top:10px;font-size:16px}
-.lr.tot b{font-size:30px;color:var(--ok);letter-spacing:-.02em}
-.lr.tot.bad b{color:var(--ng);font-size:24px}
+.lr.tot b{font-size:18px;color:var(--ok);letter-spacing:-.01em}
+.lr.tot.bad b{color:var(--ng);font-size:18px}
 
 /* now task */
 .nowtask{background:linear-gradient(160deg,#16302a,#132420);border:1px solid #2c5348;border-radius:20px;padding:18px;margin-bottom:12px}
@@ -691,9 +693,10 @@ function renderNow(P){
   h+='<div class="hero'+(late?' go':'')+'">'
     +'<div class="lbl">'+esc(A.title)+'（'+hm(A.d)+(A.addr?' ・'+esc(shortAddr(A.addr)):'')+'）まで'
     +(hereKm?' <b style="color:#6aa9ff">直線'+hereKm.km.toFixed(1)+'km</b>':'')+'</div>'
-    +'<div class="big">あと '+dur(P.untilAnchor)+'</div>'
-    +'<div class="sub">'+(late
-      ? '全部やるには <b style="color:#ff6b6b">'+dur(-P.slack)+' 足りない</b>。どれか外すか、短くする。'
+    +'<div class="big'+(late?'':' ok')+'"><span class="pre">'+(late?'足りない':'のこり')+'</span>'
+    +(late?dur(-P.slack):dur(P.slack))+'</div>'
+    +'<div class="sub">約束まで あと '+dur(P.untilAnchor)+'。'+(late
+      ? 'どれか外すか、短くする。'
       : '全部やるなら <b style="color:#e8edf3">'+hm(P.startBy)+'</b> までに動き出せばいい。')+'</div>'
     +'<div class="ldg">'
     +'<div class="lr"><span>約束まで</span><b>'+dur(P.untilAnchor)+'</b></div>';
@@ -1164,7 +1167,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-08-20-7';
+const APP_VERSION='2026-08-20-8';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
