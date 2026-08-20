@@ -295,6 +295,11 @@ nav button.on{color:var(--acc)}
 </nav>
 
 <script>
+/* 移動手段。migrate() から参照されるので state より先に置く */
+const MODES={train:{n:'電車・バス',v:30,f:12},walk:{n:'徒歩',v:4.5,f:0},
+             bike:{n:'自転車',v:13,f:2},car:{n:'車',v:25,f:5}};
+const DEFMODE='train';
+
 /* ================= state ================= */
 const KEY='gyakusan.v2', OLDKEY='gyakusan.v1';
 const DEF={hereName:'家', here:null, buffer:10, fudge:20, detour:25, anchors:[]};
@@ -316,13 +321,13 @@ function migrate(v1){
   s.anchors=(v1.anchors||[]).map(a=>{
     const p=pm[a.placeId];
     return {id:a.id,title:a.title,at:a.at,addr:p?p.name:'',lat:p?p.lat:null,lng:p?p.lng:null,
-            mode:p?(p.mode||'walk'):'walk',travelMin:p?p.min:null,subs:[]};
+            mode:p?(p.mode||DEFMODE):DEFMODE,travelMin:p?p.min:null,subs:[]};
   });
   const host=s.anchors[0];
   if(host)host.subs=(v1.tasks||[]).filter(t=>!t.done).map(t=>{
     const p=pm[t.placeId];
     return {id:t.id,title:t.title,min:t.min,addr:p?p.name:'',lat:p?p.lat:null,lng:p?p.lng:null,
-            mode:p?(p.mode||'walk'):'walk',travelMin:p?p.min:null,on:t.on!==false,done:false};
+            mode:p?(p.mode||DEFMODE):DEFMODE,travelMin:p?p.min:null,on:t.on!==false,done:false};
   });
   return s;
 }
@@ -342,8 +347,6 @@ function dur(m){m=Math.round(m);if(m<0)m=0;const h=Math.floor(m/60),r=m%60;
   return h?(r?h+'時間'+r+'分':h+'時間'):r+'分'}
 
 /* ================= 位置・移動時間 ================= */
-const MODES={walk:{n:'徒歩',v:4.5,f:0},bike:{n:'自転車',v:13,f:2},
-             car:{n:'車',v:25,f:5},train:{n:'電車・バス',v:30,f:12}};
 function kmBetween(a,b){
   const R=6371,r=Math.PI/180;
   const dLat=(b.lat-a.lat)*r,dLng=(b.lng-a.lng)*r;
@@ -352,7 +355,7 @@ function kmBetween(a,b){
 }
 function legMin(from,to,mode){
   if(!from||!to||from.lat==null||to.lat==null)return null;
-  const d=kmBetween(from,to)*(1+(S.detour||0)/100), M=MODES[mode||'walk'];
+  const d=kmBetween(from,to)*(1+(S.detour||0)/100), M=MODES[mode||DEFMODE];
   return {min:Math.max(1,Math.round(d/M.v*60+M.f)), km:d, mode:M.n};
 }
 const hasPlace=x=>!!((x.addr&&x.addr.trim())||x.travelMin!=null||x.lat!=null);
@@ -360,11 +363,28 @@ const hasPlace=x=>!!((x.addr&&x.addr.trim())||x.travelMin!=null||x.lat!=null);
 function locate(){
   if(!navigator.geolocation)return alert('この端末では現在地が取れません');
   const el=document.getElementById('hereGeo'); el.textContent='取得中…'; el.className='';
-  navigator.geolocation.getCurrentPosition(p=>{
-    S.here={lat:p.coords.latitude,lng:p.coords.longitude,acc:Math.round(p.coords.accuracy),at:Date.now()};
-    save();render();toast('現在地を取った。移動時間を計算し直したよ');
-  },e=>{render();alert('現在地が取れませんでした（'+e.message+'）\n・位置情報の許可を確認\n・https か localhost でないと使えません');},
-  {enableHighAccuracy:true,timeout:12000,maximumAge:30000});
+  const ok=p=>{
+    const acc=Math.round(p.coords.accuracy);
+    S.here={lat:p.coords.latitude,lng:p.coords.longitude,acc,at:Date.now()};
+    save();render();
+    toast(acc>500
+      ? '取れたけど誤差 ±'+acc+'m と大きい。外に出てもう一度押すと正確になるよ'
+      : '現在地を取った（±'+acc+'m）。移動時間を計算し直したよ');
+  };
+  const fail=e=>{
+    render();
+    const msg=e.code===1 ? '位置情報が許可されていません。\n iPhone: 設定 → プライバシーとセキュリティ → 位置情報サービス → Safari（またはこのアプリ）を「このAppの使用中」に'
+      : e.code===2 ? '位置が分かりませんでした。地下や建物の奥だと取れないことがあります。窓際か外でもう一度。'
+      : '時間内に取れませんでした。電波の良いところでもう一度押してみて。';
+    alert('現在地が取れませんでした\n\n'+msg);
+  };
+  /* まず GPS で高精度に。駄目なら Wi-Fi/基地局の粗い方法に切り替えて必ず何か取る */
+  navigator.geolocation.getCurrentPosition(ok,e=>{
+    if(e.code===1)return fail(e);
+    el.textContent='取得中…（粗い方法で再挑戦）';
+    navigator.geolocation.getCurrentPosition(ok,fail,
+      {enableHighAccuracy:false,timeout:15000,maximumAge:120000});
+  },{enableHighAccuracy:true,timeout:12000,maximumAge:30000});
 }
 
 /* 住所 → 緯度経度（OpenStreetMap Nominatim。住所の文字だけを送る） */
@@ -478,13 +498,19 @@ function render(){
   document.getElementById('clock').innerHTML=hm(P.now)+'<span>'+DOW[P.now.getDay()]+'</span>';
   document.getElementById('hereName').textContent=S.hereName||'ここ';
   const hg=document.getElementById('hereGeo');
+  const rough=S.here&&S.here.acc>500;
+  const mins=S.here?Math.round((Date.now()-S.here.at)/60000):0;
   const geoTxt=S.here
-    ? '📍 取得ずみ ±'+S.here.acc+'m'+(Math.round((Date.now()-S.here.at)/60000)>2?'（'+Math.round((Date.now()-S.here.at)/60000)+'分前）':'')
+    ? (rough?'⚠️ ざっくり ±':'📍 取得ずみ ±')+S.here.acc+'m'+(mins>2?'（'+mins+'分前）':'')
     : 'タップで現在地を取る';
-  if(hg.textContent!=='取得中…'){hg.className=S.here?'':'no';hg.textContent=geoTxt}
+  if(hg.textContent.indexOf('取得中')<0){hg.className=S.here?(rough?'no':''):'no';hg.textContent=geoTxt}
   const sg=document.getElementById('setGeo');
-  sg.className=S.here?'geo ok':'geo';
-  sg.textContent=S.here?'✓ 取得ずみ（誤差 ±'+S.here.acc+'m）':'まだ取っていません。取ると住所から移動時間を自動で出せます。';
+  sg.className=S.here?(rough?'geo err':'geo ok'):'geo';
+  sg.textContent=S.here
+    ? (rough
+      ? '⚠️ 誤差 ±'+S.here.acc+'m とかなり粗いです（地下や建物の奥だとこうなります）。窓際か外で取り直すと正確になります。'
+      : '✓ 取得ずみ（誤差 ±'+S.here.acc+'m）'+(mins>10?'／'+mins+'分前に取得。移動したなら取り直してね':''))
+    : 'まだ取っていません。取ると住所から移動時間を自動で出せます。';
   syncField('sHere',S.hereName||''); syncField('sBuf',S.buffer); syncField('sFudge',S.fudge); syncField('sDet',S.detour);
   renderNow(P); renderAnc(P); syncParent();
 }
@@ -782,7 +808,7 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
 ['aMode','sMode','iMode'].forEach(id=>{
   const e=document.getElementById(id);
   e.innerHTML=Object.keys(MODES).map(k=>'<option value="'+k+'">'+MODES[k].n+'</option>').join('');
-  e.value='walk';
+  e.value=DEFMODE;
   e.onchange=()=>{const k=id[0], g=GEOBUF[k];
     if(g)document.getElementById(k+'Geo').innerHTML='✓ '+esc(g.label)+describeLeg(g,e.value)};
 });
@@ -823,7 +849,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-08-20-3';
+const APP_VERSION='2026-08-20-4';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
