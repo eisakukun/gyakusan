@@ -108,7 +108,7 @@ h2:first-child{margin-top:6px}
 input,select,button,textarea{font-family:inherit;font-size:16px}
 .f{display:flex;flex-direction:column;gap:8px}
 .f label{font-size:12px;color:var(--dim);margin-bottom:-4px}
-input[type=text],input[type=number],input[type=datetime-local],select{
+input[type=text],input[type=number],input[type=datetime-local],input[type=date],input[type=time],select{
   width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--tx);
   border-radius:11px;padding:12px;outline:none}
 input:focus,select:focus{border-color:var(--acc)}
@@ -178,7 +178,12 @@ nav button.on{color:var(--acc)}
         <label>なに</label>
         <input type="text" id="aT" placeholder="例：バイト / 病院 / 提出">
         <label>いつ</label>
-        <input type="datetime-local" id="aAt">
+        <div class="chips" id="aQuickChips"></div>
+        <div class="chips" id="aDateChips" style="margin-top:-2px"></div>
+        <div class="two">
+          <input type="date" id="aDate" onchange="aSyncFromFields()">
+          <input type="time" id="aTime" onchange="aSyncFromFields()">
+        </div>
         <label>どこ（行く必要がある？）</label>
         <select id="aP"></select>
         <button class="btn" onclick="addAnchor()">＋ 追加する</button>
@@ -544,8 +549,10 @@ function del(k,id){S[k]=S[k].filter(x=>x.id!==id);save();render()}
 function doneTask(id){const t=S.tasks.find(x=>x.id===id);if(t)t.done=true;save();render()}
 function setMin(id,v){const p=place(id);if(p){p.min=Math.max(0,+v||0);p.manual=true}save();render()}
 function addAnchor(){
-  const t=document.getElementById('aT').value.trim(),at=document.getElementById('aAt').value;
-  if(!t||!at)return alert('なにと、いつ を入れてね');
+  const t=document.getElementById('aT').value.trim();
+  const d=document.getElementById('aDate').value, tm=document.getElementById('aTime').value;
+  if(!t||!d||!tm)return alert('なにと、いつ を入れてね');
+  const at=d+'T'+tm;
   S.anchors.push({id:uid(),title:t,at,placeId:document.getElementById('aP').value||null});
   save();document.getElementById('aT').value='';render();
 }
@@ -667,15 +674,49 @@ function chipRow(el,input,vals){
     el.querySelectorAll('.chip').forEach(x=>x.classList.toggle('on',x===c));
   });
 }
+function ymd(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+function aSetDate(offsetDays){
+  const d=new Date(); d.setDate(d.getDate()+offsetDays);
+  document.getElementById('aDate').value=ymd(d);
+  if(!document.getElementById('aTime').value)document.getElementById('aTime').value='09:00';
+  aMarkDateChip(offsetDays); aMarkQuickChip(null);
+}
+function aSetQuick(mins){
+  const d=new Date(Date.now()+mins*60000);
+  document.getElementById('aDate').value=ymd(d);
+  document.getElementById('aTime').value=pad(d.getHours())+':'+pad(d.getMinutes());
+  aMarkQuickChip(mins); aMarkDateChip(null);
+}
+function aSyncFromFields(){ aMarkDateChip(null); aMarkQuickChip(null); }
+function aMarkDateChip(off){
+  const dEl=document.getElementById('aDateChips');
+  dEl.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',off!==null&&+c.dataset.off===off));
+}
+function aMarkQuickChip(m){
+  const qEl=document.getElementById('aQuickChips');
+  qEl.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',m!==null&&+c.dataset.m===m));
+}
+(function initAncPicker(){
+  const today=new Date();
+  const dEl=document.getElementById('aDateChips');
+  dEl.innerHTML=[[0,'今日'],[1,'明日'],[2,'明後日']].map(([off,label])=>{
+    const d=new Date(today); d.setDate(d.getDate()+off);
+    return '<button type="button" class="chip" data-off="'+off+'" onclick="aSetDate('+off+')">'
+      +label+'<span style="opacity:.6"> '+(d.getMonth()+1)+'/'+d.getDate()+'</span></button>';
+  }).join('');
+  const qEl=document.getElementById('aQuickChips');
+  qEl.innerHTML=[[30,'30分後'],[60,'1時間後'],[120,'2時間後'],[180,'3時間後']].map(([m,label])=>
+    '<button type="button" class="chip" data-m="'+m+'" onclick="aSetQuick('+m+')">'+label+'</button>').join('');
+})();
 chipRow(document.getElementById('tMinChips'),document.getElementById('tMin'),[10,15,30,60,90,120]);
 chipRow(document.getElementById('iMinChips'),document.getElementById('iMin'),[30,60,120,180,240]);
 document.getElementById('iP').onchange=function(){
   document.getElementById('iNewWrap').style.display=this.value==='__new'?'flex':'none';
 };
-document.getElementById('aAt').value=localISO(new Date(Date.now()+3*3600000));
+aSetQuick(3*60);
 
 /* ---------- 版チェック（直したコードを端末に届ける） ---------- */
-const APP_VERSION='2026-08-20-1';
+const APP_VERSION='2026-08-20-2';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e);})();
