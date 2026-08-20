@@ -53,8 +53,7 @@ h2:first-child{margin-top:6px}
 .lr.mv{color:var(--acc);font-size:13px}
 .lr.mv i{font-style:normal;font-size:11px;color:var(--dim2)}
 .lr.tot{border-top:1px dashed #33404e;margin-top:6px;padding-top:10px;font-size:16px}
-.lr.tot b{font-size:18px;color:var(--ok);letter-spacing:-.01em}
-.lr.tot.bad b{color:var(--ng);font-size:18px}
+.lr.tot b{font-size:18px;color:var(--tx);letter-spacing:-.01em}
 
 /* now task */
 .nowtask{background:linear-gradient(160deg,#16302a,#132420);border:1px solid #2c5348;border-radius:20px;padding:18px;margin-bottom:12px}
@@ -698,8 +697,7 @@ function renderNow(P){
     +'<div class="sub">約束まで あと '+dur(P.untilAnchor)+'。'+(late
       ? 'どれか外すか、短くする。'
       : '全部やるなら <b style="color:#e8edf3">'+hm(P.startBy)+'</b> までに動き出せばいい。')+'</div>'
-    +'<div class="ldg">'
-    +'<div class="lr"><span>約束まで</span><b>'+dur(P.untilAnchor)+'</b></div>';
+    +'<div class="ldg">';
 
   if(!P.steps.length&&!P.toAnchor)h+='<div class="lr m"><span>引くものがまだ無い</span><b>0分</b></div>';
   P.steps.forEach(st=>{
@@ -713,8 +711,8 @@ function renderNow(P){
       +(P.anchorKm!=null?' <i>'+P.anchorKm.toFixed(1)+'km</i>':'')+'</span><b>'
       +(P.anchorUnknown?'?':'−'+dur(P.toAnchor))+'</b></div>';
   if(P.buffer)h+='<div class="lr m"><span>出発前の余裕</span><b>−'+dur(P.buffer)+'</b></div>';
-  h+='<div class="lr tot'+(late?' bad':'')+'"><span>'+(late?'足りない':'のこり')+'</span><b>'
-    +(late?'−'+dur(-P.slack):dur(P.slack))+'</b></div></div>'
+  h+='<div class="lr tot"><span>'+esc(A.title)+'（'+hm(A.d)+'）まで</span><b>あと '
+    +dur(P.untilAnchor)+'</b></div></div>'
     +'<div class="bar"><i style="width:'+Math.max(0,Math.min(100,P.slack/Math.max(1,P.untilAnchor)*100))
     +'%;background:'+(late?'var(--ng)':'var(--ok)')+'"></i></div></div>';
 
@@ -1167,7 +1165,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-08-20-8';
+const APP_VERSION='2026-08-20-9';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
