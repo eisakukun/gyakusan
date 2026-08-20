@@ -115,6 +115,12 @@ input:focus,select:focus{border-color:var(--acc)}
   border-radius:11px;padding:0 14px;font-size:13px;font-weight:700;white-space:nowrap;cursor:pointer}
 .geo{font-size:12px;line-height:1.6;padding:2px 2px 0;min-height:18px}
 .geo.ok{color:var(--ok)} .geo.err{color:var(--ng)} .geo.wait{color:var(--dim)}
+.nlp{font-size:12px;color:var(--acc);line-height:1.6;padding:0 2px;min-height:2px}
+.editbar{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  background:#2a2438;border:1px solid #493b66;border-radius:10px;padding:8px 12px;margin-bottom:12px;
+  font-size:13px;color:#c39bff;font-weight:700}
+.editbar button{background:none;border:1px solid #493b66;color:#c39bff;border-radius:8px;
+  padding:5px 10px;font-size:12px;cursor:pointer}
 
 /* verdict */
 .vd{border-radius:18px;padding:18px;margin-bottom:10px}
@@ -167,10 +173,14 @@ nav button.on{color:var(--acc)}
   <section class="pg" id="pg-anc">
     <h2>これだけは譲れないこと</h2>
     <p class="tiny">時間が決まってて動かせないもの。ここが逆算の起点になる。</p>
-    <div class="card">
+    <div class="card" id="aCard">
+      <div class="editbar" id="aEdit" style="display:none">
+        <span>✎ 編集中</span><button type="button" onclick="cancelEditAnchor()">やめる</button>
+      </div>
       <div class="f">
-        <label>なに</label>
-        <input type="text" id="aT" placeholder="例：バイト / 病院 / 渋谷で打ち合わせ">
+        <label>なに（日時や場所も一緒に書いてOK）</label>
+        <input type="text" id="aT" placeholder="例：明日15時 渋谷駅で打ち合わせ" oninput="onATitle()">
+        <div class="nlp" id="aNlp"></div>
         <label>いつ</label>
         <div class="chips" id="aQuickChips"></div>
         <div class="chips" id="aDateChips"></div>
@@ -186,18 +196,22 @@ nav button.on{color:var(--acc)}
         <div class="geo" id="aGeo"></div>
         <label>行きかた</label>
         <select id="aMode"></select>
-        <button class="btn" onclick="addAnchor()">＋ 追加する</button>
+        <button class="btn" id="aBtn" onclick="addAnchor()">＋ 追加する</button>
       </div>
     </div>
 
     <h2>サブ目標を足す</h2>
     <p class="tiny">その約束までに済ませたいこと。時間と、行く必要があるなら住所を入れる。</p>
-    <div class="card">
+    <div class="card" id="sCard">
+      <div class="editbar" id="sEdit" style="display:none">
+        <span>✎ 編集中</span><button type="button" onclick="cancelEditSub()">やめる</button>
+      </div>
       <div class="f">
         <label>どの目標の下に？</label>
         <select id="sParent"></select>
-        <label>なに</label>
-        <input type="text" id="sT" placeholder="例：夜ごはん買う / 資料つくる">
+        <label>なに（時間や場所も一緒に書いてOK）</label>
+        <input type="text" id="sT" placeholder="例：渋谷駅で手土産 20分" oninput="onSTitle()">
+        <div class="nlp" id="sNlp"></div>
         <label>かかる時間</label>
         <div class="chips" id="sMinChips"></div>
         <input type="number" id="sMin" value="30" min="5" step="5">
@@ -209,7 +223,7 @@ nav button.on{color:var(--acc)}
         <div class="geo" id="sGeo"></div>
         <label>行きかた</label>
         <select id="sMode"></select>
-        <button class="btn" onclick="addSub()">＋ サブ目標を足す</button>
+        <button class="btn" id="sBtn" onclick="addSub()">＋ サブ目標を足す</button>
       </div>
     </div>
 
@@ -246,13 +260,19 @@ nav button.on{color:var(--acc)}
   <section class="pg" id="pg-set">
     <h2>いま居る場所</h2>
     <div class="card">
-      <button class="btn sec" onclick="locate()">📍 現在地を取り直す</button>
-      <div style="height:10px"></div>
+      <button class="btn sec" onclick="locate()">📍 現在地を取り直す（GPS）</button>
+      <div class="geo" id="setGeo" style="margin-top:8px"></div>
+      <div style="height:12px"></div>
       <div class="f">
+        <label>GPSが変なとき：いまいる場所を住所や駅名で指定する</label>
+        <div class="addrbox">
+          <input type="text" id="hAddr" placeholder="例：渋谷駅 / 福岡市中央区天神">
+          <button type="button" onclick="setHereByAddr()">ここにする</button>
+        </div>
+        <div class="geo" id="hGeo"></div>
         <label>いま居る場所の呼び名（表示だけに使う）</label>
         <input type="text" id="sHere" oninput="S.hereName=this.value;save();render()">
       </div>
-      <div class="geo" id="setGeo" style="margin-top:8px"></div>
     </div>
 
     <h2>逆算のクセ</h2>
@@ -365,7 +385,7 @@ function locate(){
   const el=document.getElementById('hereGeo'); el.textContent='取得中…'; el.className='';
   const ok=p=>{
     const acc=Math.round(p.coords.accuracy);
-    S.here={lat:p.coords.latitude,lng:p.coords.longitude,acc,at:Date.now()};
+    S.here={lat:p.coords.latitude,lng:p.coords.longitude,acc,at:Date.now(),manual:false};
     save();render();
     toast(acc>500
       ? '取れたけど誤差 ±'+acc+'m と大きい。外に出てもう一度押すと正確になるよ'
@@ -389,11 +409,12 @@ function locate(){
 
 /* 住所 → 緯度経度（OpenStreetMap Nominatim。住所の文字だけを送る） */
 let _lastGeo=0;
-async function geoOnce(q){
+async function geoOnce(q,jpOnly){
   const wait=Math.max(0,1100-(Date.now()-_lastGeo));
   if(wait)await new Promise(r=>setTimeout(r,wait));
   _lastGeo=Date.now();
-  const url='https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ja&q='+encodeURIComponent(q);
+  const url='https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ja'
+    +(jpOnly?'&countrycodes=jp':'')+'&q='+encodeURIComponent(q);
   const r=await fetch(url);
   if(!r.ok)throw new Error('住所の検索に失敗した（'+r.status+'）');
   const j=await r.json();
@@ -411,9 +432,15 @@ function addrVariants(q){
 }
 async function geocode(q){
   const vs=addrVariants(q);
+  /* まず日本国内だけで探す（「新宿駅」が海外の地名に化けるのを防ぐ）。
+     国内で1つも無ければ、海外の可能性として世界から探し直す */
   for(const v of vs){
-    const g=await geoOnce(v);
+    const g=await geoOnce(v,true);
     if(g)return {...g, matched:v, exact:v===q.trim()};
+  }
+  for(const v of vs){
+    const g=await geoOnce(v,false);
+    if(g)return {...g, matched:v, exact:v===q.trim(), abroad:true};
   }
   throw new Error('見つからなかった。市区町村＋町名だけにするか、施設名（例：井の頭公園）で試してみて');
 }
@@ -453,6 +480,109 @@ function toast(m){
     document.body.appendChild(t)}
   t.textContent=m;t.style.opacity='1';
   clearTimeout(t._x);t._x=setTimeout(()=>t.style.opacity='0',2600);
+}
+
+/* ================= 「なに」から日時・場所・タイトルを読み取る ================= */
+const Z2H=s=>String(s).replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0))
+  .replace(/[：]/g,':').replace(/[／]/g,'/').replace(/[＠]/g,'@').replace(/[　]/g,' ')
+  .replace(/[－ー‐‑–—]/g,'-');
+const WD='日月火水木金土';
+
+/* kind: 'when'=予定（日時） / 'dur'=サブ目標（かかる時間） */
+function parseNL(raw,kind){
+  const now=new Date();
+  let s=' '+Z2H(raw||'').trim()+' ';
+  const R={title:'',date:null,time:null,dur:null,addr:'',found:[]};
+  const eat=(re,fn)=>{
+    const m=s.match(re); if(!m)return false;
+    if(fn(m)===false)return false;
+    s=s.replace(m[0],' '); R.found.push(m[0].trim()); return true;
+  };
+
+  /* --- 場所（@ が一番確実、次に住所、次に施設名） --- */
+  const NOTPLACE=/^(電車|バス|車|徒歩|歩き|自転車|急い|一人|ひとり|自分|みんな|あと|以内|オンライン|リモート|ネット|全部|あそこ|ここ|そこ|それ|これ|今日|明日|自宅|手|後|前|中)$/;
+  eat(/@(\S+)/,m=>{R.addr=m[1]}) ||
+  eat(/((?:北海道|東京都|京都府|大阪府|[^\s]{2,3}県)[^\s、。]{2,})/,m=>{R.addr=m[1]}) ||
+  eat(/([^\s、。]{2,14}?(?:駅|空港|港|公園|病院|クリニック|医院|歯科|美術館|博物館|図書館|区役所|市役所|役所|ホール|劇場|映画館|スタジオ|センター|ビル|大学|高校|中学校|小学校|会館|球場|スタジアム|温泉|神社|銀行|郵便局|警察署|市民館|百貨店|デパート|モール|スーパー|ジム|ホテル|旅館))\s*(?:で|にて|に|へ)?/,m=>{R.addr=m[1]}) ||
+  /* 上で当たらないとき「◯◯で」を場所の候補として拾う（固有名詞：伊勢丹で 等）。
+     推測なので自動では検索せず、印だけ付ける */
+  eat(/(?:^|\s)([^\s、。0-9]{2,12}?)(?:で|にて)/,m=>{
+    if(NOTPLACE.test(m[1]))return false;
+    R.addr=m[1];R.addrGuess=true;
+  });
+
+  if(kind==='dur'){
+    /* --- かかる時間 --- */
+    eat(/(\d+)\s*時間\s*半/,m=>{R.dur=(+m[1])*60+30}) ||
+    eat(/(\d+)\s*時間\s*(\d+)\s*分/,m=>{R.dur=(+m[1])*60+ +m[2]}) ||
+    eat(/(\d+)\s*時間/,m=>{R.dur=(+m[1])*60}) ||
+    eat(/(\d+)\s*分/,m=>{R.dur=+m[1]});
+  }else{
+    /* --- ◯分後 / ◯時間後 --- */
+    let rel=null;
+    eat(/(\d+)\s*時間半後/,m=>{rel=(+m[1])*60+30}) ||
+    eat(/(\d+)\s*時間(?:\s*(\d+)\s*分)?後/,m=>{rel=(+m[1])*60+(+(m[2]||0))}) ||
+    eat(/(\d+)\s*分後/,m=>{rel=+m[1]});
+    if(rel!==null){
+      const t=new Date(now.getTime()+rel*60000);
+      R.date=ymd(t); R.time=pad(t.getHours())+':'+pad(t.getMinutes());
+    }else{
+      /* --- 日付 --- */
+      let off=null;
+      eat(/(今日|本日|きょう)/,()=>{off=0}) ||
+      eat(/(明日|あした|あす)/,()=>{off=1}) ||
+      eat(/(明後日|あさって)/,()=>{off=2}) ||
+      eat(/(明々後日|しあさって)/,()=>{off=3}) ||
+      eat(/(来週|再来週)?\s*(?:の)?\s*([月火水木金土日])曜日?/,m=>{
+        const wd=WD.indexOf(m[2]);
+        const today0=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+        if(m[1]){
+          /* 「来週の月曜」＝次の週（月曜はじまり）のその曜日 */
+          const mon=new Date(today0); mon.setDate(today0.getDate()-((now.getDay()+6)%7));
+          const tgt=new Date(mon); tgt.setDate(mon.getDate()+(m[1]==='来週'?7:14)+((wd+6)%7));
+          off=Math.round((tgt-today0)/86400000);
+        }else{
+          let diff=(wd-now.getDay()+7)%7;
+          off=diff===0?7:diff;      /* 「月曜」だけなら次に来る月曜 */
+        }
+      }) ||
+      eat(/(\d{1,2})\s*[\/月]\s*(\d{1,2})\s*日?/,m=>{
+        const mo=+m[1],da=+m[2];
+        if(mo<1||mo>12||da<1||da>31)return false;
+        const dd=new Date(now.getFullYear(),mo-1,da);
+        if(dd.getMonth()!==mo-1)return false;
+        if(dd<new Date(now.getFullYear(),now.getMonth(),now.getDate()))dd.setFullYear(now.getFullYear()+1);
+        R.date=ymd(dd); off='set';
+      });
+      if(off!==null&&off!=='set'){const dd=new Date(now);dd.setDate(dd.getDate()+off);R.date=ymd(dd)}
+
+      /* --- 時刻 --- */
+      let ap=null;
+      eat(/(午前|午後|朝|昼|夕方|夜|深夜|晩)/,m=>{ap=m[1]});
+      eat(/(\d{1,2})\s*(?::|時)\s*(\d{1,2})?\s*分?\s*(半)?/,m=>{
+        let hh=+m[1], mm=m[3]?30:(m[2]!=null?+m[2]:0);
+        if(hh>23||mm>59)return false;
+        if(ap&&/午後|夕方|夜|晩/.test(ap)&&hh<12)hh+=12;
+        if(ap==='昼'&&hh<12)hh+=12;
+        R.time=pad(hh)+':'+pad(mm);
+      });
+    }
+  }
+  R.title=s.replace(/\s+/g,' ').replace(/^[\s、。にでへのから]+|[\s、。にでへのから]+$/g,'').trim();
+  return R;
+}
+function nlpPreview(R,kind){
+  const bits=[];
+  if(R.date){const d=new Date(R.date+'T00:00');
+    bits.push('📅 '+(d.getMonth()+1)+'/'+d.getDate()+'('+WD[d.getDay()]+')')}
+  if(R.time)bits.push('🕐 '+R.time);
+  if(R.dur!=null)bits.push('⏱ '+dur(R.dur));
+  if(R.addr)bits.push(R.addrGuess
+    ? '<span style="color:#ffb454">📍 '+esc(R.addr)+'?（合ってたら「調べる」）</span>'
+    : '📍 '+esc(R.addr));
+  if(!bits.length)return '';
+  return '読み取り: '+bits.join(' ／ ')+(R.title?' ／ 「'+esc(R.title)+'」':
+    ' <span style="color:#ffb454">／ タイトルが空です</span>');
 }
 
 /* ================= 逆算の本体 ================= */
@@ -498,19 +628,23 @@ function render(){
   document.getElementById('clock').innerHTML=hm(P.now)+'<span>'+DOW[P.now.getDay()]+'</span>';
   document.getElementById('hereName').textContent=S.hereName||'ここ';
   const hg=document.getElementById('hereGeo');
-  const rough=S.here&&S.here.acc>500;
+  const manual=S.here&&S.here.manual;
+  const rough=S.here&&!manual&&S.here.acc>500;
   const mins=S.here?Math.round((Date.now()-S.here.at)/60000):0;
-  const geoTxt=S.here
-    ? (rough?'⚠️ ざっくり ±':'📍 取得ずみ ±')+S.here.acc+'m'+(mins>2?'（'+mins+'分前）':'')
-    : 'タップで現在地を取る';
-  if(hg.textContent.indexOf('取得中')<0){hg.className=S.here?(rough?'no':''):'no';hg.textContent=geoTxt}
+  const geoTxt=!S.here ? 'タップで現在地を取る'
+    : manual ? '✏️ 手入力ずみ'
+    : (rough?'⚠️ ざっくり ±':'📍 取得ずみ ±')+S.here.acc+'m'+(mins>2?'（'+mins+'分前）':'');
+  if(hg.textContent.indexOf('取得中')<0){hg.className=(S.here&&!rough)?'':'no';hg.textContent=geoTxt}
   const sg=document.getElementById('setGeo');
-  sg.className=S.here?(rough?'geo err':'geo ok'):'geo';
-  sg.textContent=S.here
-    ? (rough
-      ? '⚠️ 誤差 ±'+S.here.acc+'m とかなり粗いです（地下や建物の奥だとこうなります）。窓際か外で取り直すと正確になります。'
-      : '✓ 取得ずみ（誤差 ±'+S.here.acc+'m）'+(mins>10?'／'+mins+'分前に取得。移動したなら取り直してね':''))
-    : 'まだ取っていません。取ると住所から移動時間を自動で出せます。';
+  sg.className=!S.here?'geo':(rough?'geo err':'geo ok');
+  sg.textContent=!S.here
+    ? 'まだ取っていません。取ると住所から移動時間を自動で出せます。'
+    : manual
+      ? '✏️ 下の欄で手入力した場所を使っています：'+(S.here.label||'').split(',').slice(0,2).join(',')
+        +'／ GPSに戻すなら上のボタンを押してください'
+      : rough
+        ? '⚠️ 誤差 ±'+S.here.acc+'m とかなり粗いです（地下や建物の奥だとこうなります）。窓際か外で取り直すか、下の欄に住所を入れてください。'
+        : '✓ 取得ずみ（誤差 ±'+S.here.acc+'m）'+(mins>10?'／'+mins+'分前に取得。移動したなら取り直してね':'');
   syncField('sHere',S.hereName||''); syncField('sBuf',S.buffer); syncField('sFudge',S.fudge); syncField('sDet',S.detour);
   renderNow(P); renderAnc(P); syncParent();
 }
@@ -577,7 +711,11 @@ function renderNow(P){
 
   if(!S.here&&(A.addr||P.subs.some(s=>s.addr)))
     h+='<div class="card" style="border-color:#4a3a22;background:#241d13"><div class="muted">'
-      +'📍 住所は入ってるけど<b>現在地がまだ</b>。上の「いま居る場所」をタップすると、移動時間が全部入る。</div></div>';
+      +'📍 住所は入ってるけど<b>現在地がまだ</b>。取れると移動時間が全部入ります。</div>'
+      +'<div style="height:10px"></div><div class="two">'
+      +'<button class="btn sec" onclick="locate()">GPSで取る</button>'
+      +'<button class="btn sec" onclick="showTab(\'set\');window.scrollTo(0,0)">住所で入れる</button>'
+      +'</div></div>';
 
   h+='<div class="tiny" style="padding:4px 4px 20px">※ やることの時間は入力に +'+(S.fudge||0)
     +'% した数字。移動は住所どうしの直線距離 +'+(S.detour||0)+'% を行きかたの速さで割った目安。</div>';
@@ -596,6 +734,7 @@ function renderAnc(P){
     let h='<div class="acard'+(past?' past':'')+(isNext?' next':'')+'">'
       +'<div class="ahd"><div class="t">'+esc(a.title)+'</div>'
       +'<div class="w">'+(d.getDate()!==P.now.getDate()?(d.getMonth()+1)+'/'+d.getDate()+' ':'')+hm(d)+'</div>'
+      +'<button class="dn" onclick="editAnchor(\''+a.id+'\')">✎</button>'
       +'<button class="del" onclick="delAnchor(\''+a.id+'\')">×</button></div>';
     h+=addrLine(a,'anchor');
     const subs=(a.subs||[]);
@@ -612,6 +751,7 @@ function renderAnc(P){
         +'<div class="ttl">'+esc(s.title)
         +(s.addr?'<small>📍 '+esc(shortAddr(s.addr))+(s.lat==null?'（未検索）':'')+'</small>':'<small>どこでもできる</small>')
         +'</div><div class="met">'+met+'</div>'
+        +'<button class="dn" onclick="editSub(\''+a.id+'\',\''+s.id+'\')">✎</button>'
         +'<button class="del" onclick="delSub(\''+a.id+'\',\''+s.id+'\')">×</button></div>';
     }).join(''):'<div class="tiny" style="padding:4px 2px">サブ目標はまだ無い。上のフォームから足せる。</div>';
     return h+'</div></div>';
@@ -643,42 +783,67 @@ function syncParent(){
 
 /* ================= 操作 ================= */
 function addAnchor(){
-  const t=document.getElementById('aT').value.trim();
+  const raw=document.getElementById('aT').value.trim();
   const d=document.getElementById('aDate').value, tm=document.getElementById('aTime').value;
-  if(!t||!d||!tm)return alert('なにと、いつ を入れてね');
-  const g=GEOBUF.a, addr=document.getElementById('aAddr').value.trim();
+  if(!raw||!d||!tm)return alert('なにと、いつ を入れてね');
+  /* 「明日15時 渋谷駅で打ち合わせ」の日時・場所部分はタイトルから外す */
+  const P=parseNL(raw,'when');
+  const t=P.title||raw;
+  const A=resolveAddr(document.getElementById('aAddr').value.trim(),GEOBUF.a,editA);
+  const mode=document.getElementById('aMode').value;
+  if(editA){
+    const a=S.anchors.find(x=>x.id===editA.id);
+    if(a){a.title=t;a.at=d+'T'+tm;a.addr=A.addr;a.lat=A.lat;a.lng=A.lng;a.travelMin=A.travelMin;a.mode=mode}
+    cancelEditAnchor();render();toast('「'+t+'」を更新した');return;
+  }
   S.anchors.push({id:uid(),title:t,at:d+'T'+tm,
-    addr:g?g.label:addr, lat:g?g.lat:null, lng:g?g.lng:null,
-    mode:document.getElementById('aMode').value, travelMin:null, subs:[]});
+    addr:A.addr,lat:A.lat,lng:A.lng,mode,travelMin:null,subs:[]});
   save();
   document.getElementById('aT').value='';
   document.getElementById('aAddr').value='';
-  document.getElementById('aGeo').textContent='';GEOBUF.a=null;
+  document.getElementById('aGeo').textContent='';GEOBUF.a=null;clearNLP();
   render();toast('「'+t+'」を追加した');
 }
 function addSub(){
   const pid=document.getElementById('sParent').value;
   if(!pid)return alert('先に「これだけは譲れないこと」を1つ追加してね');
   const a=S.anchors.find(x=>x.id===pid); if(!a)return;
-  const t=document.getElementById('sT').value.trim();
-  if(!t)return alert('なにをやる？');
-  const g=GEOBUF.s, addr=document.getElementById('sAddr').value.trim();
-  (a.subs=a.subs||[]).push({id:uid(),title:t,min:+document.getElementById('sMin').value||30,
-    addr:g?g.label:addr, lat:g?g.lat:null, lng:g?g.lng:null,
-    mode:document.getElementById('sMode').value, travelMin:null, on:true, done:false});
+  const raw=document.getElementById('sT').value.trim();
+  if(!raw)return alert('なにをやる？');
+  const P=parseNL(raw,'dur');
+  const t=P.title||raw;
+  const min=+document.getElementById('sMin').value||30;
+  const A=resolveAddr(document.getElementById('sAddr').value.trim(),GEOBUF.s,editS);
+  const mode=document.getElementById('sMode').value;
+  if(editS){
+    const oa=S.anchors.find(x=>x.id===editS.aid);
+    const sub=oa&&(oa.subs||[]).find(x=>x.id===editS.sid);
+    if(sub){
+      Object.assign(sub,{title:t,min,addr:A.addr,lat:A.lat,lng:A.lng,travelMin:A.travelMin,mode});
+      if(editS.aid!==pid){                    /* 別の目標の下に付け替え */
+        oa.subs=oa.subs.filter(x=>x.id!==editS.sid);
+        (a.subs=a.subs||[]).push(sub);
+      }
+    }
+    cancelEditSub();render();toast('「'+t+'」を更新した');return;
+  }
+  (a.subs=a.subs||[]).push({id:uid(),title:t,min,
+    addr:A.addr,lat:A.lat,lng:A.lng,mode,travelMin:null,on:true,done:false});
   save();
   document.getElementById('sT').value='';
   document.getElementById('sAddr').value='';
-  document.getElementById('sGeo').textContent='';GEOBUF.s=null;
+  document.getElementById('sGeo').textContent='';GEOBUF.s=null;clearNLP();
   render();toast('「'+a.title+'」の下に足した');
 }
 function delAnchor(id){
   const a=S.anchors.find(x=>x.id===id);
   if(a&&(a.subs||[]).length&&!confirm('「'+a.title+'」とサブ目標'+a.subs.length+'件を消す？'))return;
+  if(editA&&editA.id===id)cancelEditAnchor();
   S.anchors=S.anchors.filter(x=>x.id!==id);save();render();
 }
 function delSub(aid,sid){
   const a=S.anchors.find(x=>x.id===aid); if(!a)return;
+  if(editS&&editS.sid===sid)cancelEditSub();
   a.subs=(a.subs||[]).filter(s=>s.id!==sid);save();render();
 }
 function toggleSub(aid,sid){
@@ -774,6 +939,121 @@ function stashIdea(){
   toast('「'+a.title+'」の下に、外した状態で置いた');
 }
 
+/* ===== 「なに」を打つと日時・場所が埋まる ===== */
+let aPrev={date:null,time:null,addr:null}, sPrev={dur:null,addr:null};
+let _geoT=null;
+function debounceLookup(k){clearTimeout(_geoT);_geoT=setTimeout(()=>lookup(k),1400)}
+function onATitle(){
+  const R=parseNL(document.getElementById('aT').value,'when');
+  /* 前回の読み取りから変わったときだけ書き込む（手で直した値を消さないため） */
+  if(R.date&&R.date!==aPrev.date)document.getElementById('aDate').value=R.date;
+  if(R.time&&R.time!==aPrev.time)document.getElementById('aTime').value=R.time;
+  if(R.addr&&R.addr!==aPrev.addr){document.getElementById('aAddr').value=R.addr;
+    if(!R.addrGuess)debounceLookup('a'); else document.getElementById('aGeo').innerHTML='';}
+  if(R.date||R.time)aClearChips();
+  aPrev={date:R.date,time:R.time,addr:R.addr};
+  document.getElementById('aNlp').innerHTML=nlpPreview(R,'when');
+}
+function onSTitle(){
+  const R=parseNL(document.getElementById('sT').value,'dur');
+  if(R.dur!=null&&R.dur!==sPrev.dur){
+    document.getElementById('sMin').value=R.dur;
+    document.querySelectorAll('#sMinChips .chip').forEach(c=>c.classList.toggle('on',+c.dataset.v===R.dur));
+  }
+  if(R.addr&&R.addr!==sPrev.addr){document.getElementById('sAddr').value=R.addr;
+    if(!R.addrGuess)debounceLookup('s'); else document.getElementById('sGeo').innerHTML='';}
+  sPrev={dur:R.dur,addr:R.addr};
+  document.getElementById('sNlp').innerHTML=nlpPreview(R,'dur');
+}
+function clearNLP(){
+  aPrev={date:null,time:null,addr:null};sPrev={dur:null,addr:null};
+  document.getElementById('aNlp').innerHTML='';document.getElementById('sNlp').innerHTML='';
+}
+
+/* ===== 編集 ===== */
+let editA=null, editS=null;
+function editAnchor(id){
+  const a=S.anchors.find(x=>x.id===id); if(!a)return;
+  editA={id,addr:a.addr||'',lat:a.lat,lng:a.lng,travelMin:a.travelMin};
+  const d=new Date(a.at);
+  document.getElementById('aT').value=a.title;
+  document.getElementById('aDate').value=ymd(d);
+  document.getElementById('aTime').value=pad(d.getHours())+':'+pad(d.getMinutes());
+  document.getElementById('aAddr').value=a.addr||'';
+  document.getElementById('aMode').value=a.mode||DEFMODE;
+  document.getElementById('aGeo').innerHTML=a.addr
+    ? (a.lat!=null?'✓ '+esc(a.addr):'<span style="color:#ffb454">住所は入っているが未検索。変えたなら「調べる」を押して</span>')
+    : '';
+  GEOBUF.a=null; aPrev={date:null,time:null,addr:null};
+  document.getElementById('aNlp').innerHTML='';
+  aClearChips();
+  document.getElementById('aEdit').style.display='flex';
+  document.getElementById('aBtn').textContent='✓ この内容に更新する';
+  showTab('anc');
+  document.getElementById('aCard').scrollIntoView({block:'start'});window.scrollBy(0,-70);
+}
+function cancelEditAnchor(){
+  editA=null;
+  document.getElementById('aEdit').style.display='none';
+  document.getElementById('aBtn').textContent='＋ 追加する';
+  ['aT','aAddr'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('aGeo').innerHTML='';GEOBUF.a=null;clearNLP();
+}
+function editSub(aid,sid){
+  const a=S.anchors.find(x=>x.id===aid); if(!a)return;
+  const t=(a.subs||[]).find(x=>x.id===sid); if(!t)return;
+  editS={aid,sid,addr:t.addr||'',lat:t.lat,lng:t.lng,travelMin:t.travelMin};
+  document.getElementById('sParent').value=aid;
+  document.getElementById('sT').value=t.title;
+  document.getElementById('sMin').value=t.min;
+  document.getElementById('sAddr').value=t.addr||'';
+  document.getElementById('sMode').value=t.mode||DEFMODE;
+  document.getElementById('sGeo').innerHTML=t.addr
+    ? (t.lat!=null?'✓ '+esc(t.addr):'<span style="color:#ffb454">住所は入っているが未検索。変えたなら「調べる」を押して</span>')
+    : '';
+  GEOBUF.s=null; sPrev={dur:null,addr:null};
+  document.getElementById('sNlp').innerHTML='';
+  document.querySelectorAll('#sMinChips .chip').forEach(c=>c.classList.remove('on'));
+  document.getElementById('sEdit').style.display='flex';
+  document.getElementById('sBtn').textContent='✓ この内容に更新する';
+  showTab('anc');
+  document.getElementById('sCard').scrollIntoView({block:'start'});window.scrollBy(0,-70);
+}
+function cancelEditSub(){
+  editS=null;
+  document.getElementById('sEdit').style.display='none';
+  document.getElementById('sBtn').textContent='＋ サブ目標を足す';
+  ['sT','sAddr'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('sGeo').innerHTML='';GEOBUF.s=null;clearNLP();
+}
+function showTab(p){
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x.dataset.p===p));
+  document.querySelectorAll('.pg').forEach(x=>x.classList.toggle('on',x.id==='pg-'+p));
+}
+/* 住所欄が編集前と同じなら元の座標を保つ。変わっていれば検索結果（無ければ座標なし） */
+function resolveAddr(typed,g,orig){
+  if(orig&&typed===orig.addr)return {addr:orig.addr,lat:orig.lat,lng:orig.lng,travelMin:orig.travelMin};
+  if(g)return {addr:g.label,lat:g.lat,lng:g.lng,travelMin:null};
+  return {addr:typed,lat:null,lng:null,travelMin:null};
+}
+
+/* ===== いまいる場所を住所で指定 ===== */
+async function setHereByAddr(){
+  const inp=document.getElementById('hAddr'), out=document.getElementById('hGeo');
+  const q=inp.value.trim();
+  if(!q){out.className='geo';out.textContent='';return}
+  out.className='geo wait';out.textContent='調べてる…';
+  try{
+    const g=await geocode(q);
+    S.here={lat:g.lat,lng:g.lng,acc:0,at:Date.now(),manual:true,label:g.label};
+    if(!S.hereName||S.hereName==='家')S.hereName=q;
+    save();render();
+    out.className='geo ok';
+    out.innerHTML='✓ ここにした：'+esc(g.label)+(g.exact?'':'<br><span style="color:#ffb454">※「'+esc(g.matched)+'」で特定</span>');
+    toast('いまいる場所を「'+q+'」にした');
+  }catch(e){out.className='geo err';out.textContent='× '+(e.message||e)}
+}
+
 /* ================= バックアップ ================= */
 function exportBackup(){
   const blob=new Blob([JSON.stringify({key:KEY,savedAt:new Date().toISOString(),state:S},null,1)],{type:'application/json'});
@@ -800,11 +1080,7 @@ function importBackup(input){
 }
 
 /* ================= UI 配線 ================= */
-document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
-  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
-  document.querySelectorAll('.pg').forEach(p=>p.classList.toggle('on',p.id==='pg-'+b.dataset.p));
-  window.scrollTo(0,0);
-});
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{showTab(b.dataset.p);window.scrollTo(0,0)});
 ['aMode','sMode','iMode'].forEach(id=>{
   const e=document.getElementById(id);
   e.innerHTML=Object.keys(MODES).map(k=>'<option value="'+k+'">'+MODES[k].n+'</option>').join('');
@@ -849,7 +1125,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-08-20-4';
+const APP_VERSION='2026-08-20-5';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
