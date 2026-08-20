@@ -12,45 +12,30 @@
   --bg:#0f1216; --panel:#171c22; --panel2:#1e242c; --line:#2a323c;
   --tx:#e8edf3; --dim:#8d9aa8; --dim2:#5f6c7a;
   --ok:#3ddc97; --warn:#ffb454; --ng:#ff6b6b; --acc:#6aa9ff;
-  --r:16px;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0}
-body{
-  background:var(--bg);color:var(--tx);
+body{background:var(--bg);color:var(--tx);
   font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
-  font-size:16px;line-height:1.5;
-  padding-bottom:calc(76px + env(safe-area-inset-bottom));
-}
+  font-size:16px;line-height:1.5;padding-bottom:calc(76px + env(safe-area-inset-bottom))}
 .wrap{max-width:600px;margin:0 auto;padding:14px 14px 0}
 h2{font-size:15px;color:var(--dim);margin:22px 0 8px;font-weight:600;letter-spacing:.04em}
 h2:first-child{margin-top:6px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:10px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:10px}
 .muted{color:var(--dim);font-size:13px}
 .tiny{color:var(--dim2);font-size:12px;line-height:1.6}
+.empty{text-align:center;color:var(--dim2);font-size:14px;padding:24px 10px;line-height:1.8}
 
 /* header */
 .hd{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:4px 2px 10px}
 .clock{font-size:40px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .clock span{font-size:16px;color:var(--dim);font-weight:500;margin-left:6px}
-.here{font-size:13px;color:var(--dim);text-align:right}
+.here{font-size:13px;color:var(--dim);text-align:right;cursor:pointer}
 .here b{display:block;color:var(--tx);font-size:15px}
-.here{cursor:pointer}
 .here small{display:block;color:var(--ok);font-size:11px}
 .here small.no{color:var(--dim2)}
-.pcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:8px}
-.pcard .top{display:flex;align-items:center;gap:8px;margin-bottom:9px}
-.pcard .top .ttl{flex:1;font-weight:700}
-.pcard .ctl{display:flex;gap:6px;align-items:center}
-.pcard .ctl input{width:70px;padding:8px;text-align:right}
-.pcard .ctl select{flex:1;padding:8px;font-size:14px}
-.gps{background:var(--panel2);border:1px solid var(--line);color:var(--acc);border-radius:9px;
-  padding:8px 10px;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}
-.gps.has{color:var(--ok);border-color:#2c5348}
-.est{font-size:12px;color:var(--dim);margin-top:8px;line-height:1.6}
-.est b{color:var(--acc)}
 
-/* hero */
+/* hero + ledger */
 .hero{background:linear-gradient(160deg,#1b2531,#151a21);border:1px solid #2c3947;border-radius:20px;padding:18px;margin-bottom:12px}
 .hero .lbl{font-size:13px;color:var(--dim);margin-bottom:2px}
 .hero .big{font-size:38px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.15}
@@ -58,23 +43,15 @@ h2:first-child{margin-top:6px}
 .hero.go{background:linear-gradient(160deg,#3a1f22,#241417);border-color:#5e2c30}
 .hero.go .big{color:var(--ng)}
 .bar{height:6px;background:#252d37;border-radius:99px;overflow:hidden;margin-top:12px}
-.bar i{display:block;height:100%;background:var(--ok);border-radius:99px;transition:width .4s}
-/* ledger */
+.bar i{display:block;height:100%;border-radius:99px;transition:width .4s}
 .ldg{margin-top:14px;border-top:1px solid #2c3947;padding-top:10px}
 .lr{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:5px 0;font-size:14px}
 .lr b{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
 .lr.m{color:var(--dim);font-size:13px}
-.lr.m i{font-style:normal;font-size:11px;color:var(--dim2)}
+.lr.mv{color:var(--acc);font-size:13px}
 .lr.tot{border-top:1px dashed #33404e;margin-top:6px;padding-top:10px;font-size:16px}
 .lr.tot b{font-size:30px;color:var(--ok);letter-spacing:-.02em}
 .lr.tot.bad b{color:var(--ng);font-size:24px}
-.ck{width:24px;height:24px;border-radius:8px;border:1.5px solid var(--line);flex-shrink:0;
-  display:flex;align-items:center;justify-content:center;font-size:14px;color:#08131f}
-.ck.on{background:var(--ok);border-color:var(--ok)}
-.row.off{opacity:.42}
-.row{cursor:pointer}
-.dn{background:none;border:1px solid var(--line);color:var(--dim2);font-size:11px;
-  padding:5px 8px;border-radius:8px;cursor:pointer;flex-shrink:0}
 
 /* now task */
 .nowtask{background:linear-gradient(160deg,#16302a,#132420);border:1px solid #2c5348;border-radius:20px;padding:18px;margin-bottom:12px}
@@ -82,17 +59,29 @@ h2:first-child{margin-top:6px}
 .nowtask .t{font-size:26px;font-weight:700;line-height:1.25}
 .nowtask .m{font-size:14px;color:var(--dim);margin-top:6px}
 
-/* rows */
-.row{display:flex;align-items:center;gap:10px;padding:11px 12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:8px}
-.row.g{border-color:#2c5348;background:#14231f}
-.row.a{border-color:#4a3a22;background:#241d13}
-.row.x{opacity:.5}
-.row .ttl{flex:1;min-width:0;font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.row .met{font-size:12px;color:var(--dim);white-space:nowrap}
-.row .ico{width:26px;text-align:center;font-size:16px;flex-shrink:0}
-.del{background:none;border:none;color:var(--dim2);font-size:20px;padding:0 2px;cursor:pointer;line-height:1}
-.tagp{display:inline-block;font-size:11px;padding:2px 7px;border-radius:99px;background:#243040;color:var(--acc);margin-left:6px}
-.taga{display:inline-block;font-size:11px;padding:2px 7px;border-radius:99px;background:#2a2438;color:#c39bff;margin-left:6px}
+/* anchor card */
+.acard{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:10px}
+.acard.next{border-color:#3d5570;background:linear-gradient(160deg,#19212b,#171c22)}
+.acard .ahd{display:flex;align-items:baseline;gap:8px}
+.acard .ahd .t{flex:1;font-size:18px;font-weight:700;min-width:0}
+.acard .ahd .w{font-variant-numeric:tabular-nums;font-weight:700;color:var(--acc);white-space:nowrap}
+.acard.past{opacity:.45}
+.addr{font-size:12px;color:var(--dim);margin-top:6px;line-height:1.6;cursor:pointer}
+.addr b{color:var(--acc)}
+.addr .no{color:var(--dim2)}
+.subs{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.srow{display:flex;align-items:center;gap:9px;padding:8px 2px}
+.srow+.srow{border-top:1px solid #212832}
+.srow .ttl{flex:1;min-width:0;font-size:15px;font-weight:600}
+.srow .ttl small{display:block;font-size:11px;color:var(--dim2);font-weight:400}
+.srow .met{font-size:12px;color:var(--dim);white-space:nowrap;font-variant-numeric:tabular-nums}
+.srow.off{opacity:.4}
+.ck{width:23px;height:23px;border-radius:7px;border:1.5px solid var(--line);flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:13px;color:#08131f;cursor:pointer}
+.ck.on{background:var(--ok);border-color:var(--ok)}
+.del{background:none;border:none;color:var(--dim2);font-size:19px;padding:0 2px;cursor:pointer;line-height:1}
+.dn{background:none;border:1px solid var(--line);color:var(--dim2);font-size:11px;
+  padding:5px 8px;border-radius:8px;cursor:pointer;flex-shrink:0}
 
 /* timeline */
 .tl{position:relative;padding-left:16px;margin-top:4px}
@@ -101,14 +90,16 @@ h2:first-child{margin-top:6px}
 .tli:before{content:'';position:absolute;left:-16px;top:14px;width:10px;height:10px;border-radius:99px;background:var(--dim2);border:2px solid var(--bg)}
 .tli.k:before{background:var(--warn)}
 .tli.f:before{background:var(--ng)}
+.tli.mv:before{background:var(--acc)}
 .tli time{font-variant-numeric:tabular-nums;color:var(--dim);width:52px;flex-shrink:0;font-weight:600}
 .tli.k time,.tli.f time{color:var(--tx)}
+.tli .mvx{color:var(--acc)}
 
 /* forms */
 input,select,button,textarea{font-family:inherit;font-size:16px}
 .f{display:flex;flex-direction:column;gap:8px}
 .f label{font-size:12px;color:var(--dim);margin-bottom:-4px}
-input[type=text],input[type=number],input[type=datetime-local],input[type=date],input[type=time],select{
+input[type=text],input[type=number],input[type=date],input[type=time],select{
   width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--tx);
   border-radius:11px;padding:12px;outline:none}
 input:focus,select:focus{border-color:var(--acc)}
@@ -118,6 +109,12 @@ input:focus,select:focus{border-color:var(--acc)}
 .chip{background:var(--panel2);border:1px solid var(--line);color:var(--dim);border-radius:99px;padding:7px 13px;font-size:13px;cursor:pointer}
 .chip.on{background:var(--acc);border-color:var(--acc);color:#08131f;font-weight:700}
 .two{display:flex;gap:8px}.two>*{flex:1}
+.addrbox{display:flex;gap:8px}
+.addrbox input{flex:1}
+.addrbox button{background:var(--panel2);border:1px solid var(--line);color:var(--acc);
+  border-radius:11px;padding:0 14px;font-size:13px;font-weight:700;white-space:nowrap;cursor:pointer}
+.geo{font-size:12px;line-height:1.6;padding:2px 2px 0;min-height:18px}
+.geo.ok{color:var(--ok)} .geo.err{color:var(--ng)} .geo.wait{color:var(--dim)}
 
 /* verdict */
 .vd{border-radius:18px;padding:18px;margin-bottom:10px}
@@ -135,7 +132,6 @@ nav button{flex:1;background:none;border:none;color:var(--dim2);padding:10px 2px
 nav button i{font-style:normal;font-size:20px;line-height:1}
 nav button.on{color:var(--acc)}
 .pg{display:none}.pg.on{display:block}
-.empty{text-align:center;color:var(--dim2);font-size:14px;padding:24px 10px;line-height:1.8}
 </style>
 <meta name="apple-mobile-web-app-title" content="逆算">
 <link rel="manifest" href="manifest.webmanifest">
@@ -164,92 +160,64 @@ nav button.on{color:var(--acc)}
     <div class="here" onclick="locate()">いま居る場所<b id="hereName">家</b><small id="hereGeo" class="no">タップで現在地を取る</small></div>
   </div>
 
-  <!-- ========== 今 ========== -->
-  <section class="pg on" id="pg-now">
-    <div id="nowBody"></div>
-  </section>
+  <!-- ================= いま ================= -->
+  <section class="pg on" id="pg-now"><div id="nowBody"></div></section>
 
-  <!-- ========== 予定 ========== -->
+  <!-- ================= 予定 ================= -->
   <section class="pg" id="pg-anc">
     <h2>これだけは譲れないこと</h2>
     <p class="tiny">時間が決まってて動かせないもの。ここが逆算の起点になる。</p>
     <div class="card">
       <div class="f">
         <label>なに</label>
-        <input type="text" id="aT" placeholder="例：バイト / 病院 / 提出">
+        <input type="text" id="aT" placeholder="例：バイト / 病院 / 渋谷で打ち合わせ">
         <label>いつ</label>
         <div class="chips" id="aQuickChips"></div>
-        <div class="chips" id="aDateChips" style="margin-top:-2px"></div>
+        <div class="chips" id="aDateChips"></div>
         <div class="two">
-          <input type="date" id="aDate" onchange="aSyncFromFields()">
-          <input type="time" id="aTime" onchange="aSyncFromFields()">
+          <input type="date" id="aDate" onchange="aClearChips()">
+          <input type="time" id="aTime" onchange="aClearChips()">
         </div>
-        <label>どこ（行く必要がある？）</label>
-        <select id="aP"></select>
+        <label>住所（行く必要があるなら入れる）</label>
+        <div class="addrbox">
+          <input type="text" id="aAddr" placeholder="例：東京都渋谷区宇田川町15-1">
+          <button type="button" onclick="lookup('a')">調べる</button>
+        </div>
+        <div class="geo" id="aGeo"></div>
+        <label>行きかた</label>
+        <select id="aMode"></select>
         <button class="btn" onclick="addAnchor()">＋ 追加する</button>
       </div>
     </div>
+
+    <h2>サブ目標を足す</h2>
+    <p class="tiny">その約束までに済ませたいこと。時間と、行く必要があるなら住所を入れる。</p>
+    <div class="card">
+      <div class="f">
+        <label>どの目標の下に？</label>
+        <select id="sParent"></select>
+        <label>なに</label>
+        <input type="text" id="sT" placeholder="例：夜ごはん買う / 資料つくる">
+        <label>かかる時間</label>
+        <div class="chips" id="sMinChips"></div>
+        <input type="number" id="sMin" value="30" min="5" step="5">
+        <label>住所（行く必要があるなら入れる。無ければ空でOK）</label>
+        <div class="addrbox">
+          <input type="text" id="sAddr" placeholder="住所。どこでもできるなら空のまま">
+          <button type="button" onclick="lookup('s')">調べる</button>
+        </div>
+        <div class="geo" id="sGeo"></div>
+        <label>行きかた</label>
+        <select id="sMode"></select>
+        <button class="btn" onclick="addSub()">＋ サブ目標を足す</button>
+      </div>
+    </div>
+
+    <h2>いま入ってるもの</h2>
     <div id="ancList"></div>
   </section>
 
-  <!-- ========== やること ========== -->
-  <section class="pg" id="pg-task">
-    <h2>やりたい・やるべきこと</h2>
-    <div class="card">
-      <div class="f">
-        <label>なに</label>
-        <input type="text" id="tT" placeholder="例：洗濯 / 買い物 / 資料つくる">
-        <label>どれくらいかかる？</label>
-        <div class="chips" id="tMinChips"></div>
-        <input type="number" id="tMin" value="30" min="5" step="5">
-        <label>どこでやる？</label>
-        <select id="tP"></select>
-        <button class="btn" onclick="addTask()">＋ 追加する</button>
-      </div>
-    </div>
-    <div id="taskList"></div>
-
-    <h2>場所と移動時間</h2>
-    <p class="tiny">「いま居る場所」から片道なんぷんか。ざっくりでOK。移動したら直してね。</p>
-    <div id="placeList"></div>
-    <div class="card">
-      <div class="two">
-        <input type="text" id="pN" placeholder="場所の名前">
-        <input type="number" id="pM" placeholder="片道 分" min="0" step="5">
-      </div>
-      <div style="height:8px"></div>
-      <button class="btn sec" onclick="addPlace()">＋ 場所を足す</button>
-    </div>
-
-    <h2>設定</h2>
-    <div class="card">
-      <div class="f">
-        <label>いま居る場所の名前</label>
-        <input type="text" id="sHere" oninput="S.hereName=this.value;save();render()">
-        <label>出発前の余裕（分）— 準備・忘れ物・迷いの分</label>
-        <input type="number" id="sBuf" min="0" step="5" oninput="S.buffer=+this.value||0;save();render()">
-        <label>見積りの甘さ補正（%）— 全部の所要時間をこれだけ増やす</label>
-        <input type="number" id="sFudge" min="0" step="10" oninput="S.fudge=+this.value||0;save();render()">
-      </div>
-      <div style="height:10px"></div>
-      <button class="btn sec" onclick="if(confirm('全部消す？'))reset()">全部リセット</button>
-    </div>
-
-    <h2>バックアップ</h2>
-    <div class="card">
-      <div class="two">
-        <button class="btn sec" onclick="exportBackup()">書き出す</button>
-        <button class="btn sec" onclick="document.getElementById('bkFile').click()">読み込む</button>
-      </div>
-      <input type="file" id="bkFile" accept="application/json,.json" style="display:none" onchange="importBackup(this)">
-      <div style="height:10px"></div>
-      <p class="tiny">予定・やること・場所は、この端末の中だけに保存されます（ネットには送られません）。
-      ホーム画面から削除すると消えるので、ときどき書き出してください。<br>
-      現在地は移動時間の計算にその場で使うだけで、どこにも送信しません。</p>
-    </div>
-  </section>
-
-  <!-- ========== ひらめき ========== -->
+  <!-- ================= ひらめき ================= -->
   <section class="pg" id="pg-idea">
     <h2>いま思いついた、これ入る？</h2>
     <p class="tiny">「海行きたい」みたいなやつを、やる前に判定する。</p>
@@ -260,382 +228,529 @@ nav button.on{color:var(--acc)}
         <label>そこで過ごす時間</label>
         <div class="chips" id="iMinChips"></div>
         <input type="number" id="iMin" value="60" min="5" step="5">
-        <label>どこ</label>
-        <select id="iP"></select>
-        <div class="two" id="iNewWrap" style="display:none">
-          <input type="text" id="iNewN" placeholder="場所の名前">
-          <input type="number" id="iNewM" placeholder="片道 分" step="5">
+        <label>住所（どこでもできるなら空のまま）</label>
+        <div class="addrbox">
+          <input type="text" id="iAddr" placeholder="例：福岡県福岡市東区大字勝馬">
+          <button type="button" onclick="lookup('i')">調べる</button>
         </div>
+        <div class="geo" id="iGeo"></div>
+        <label>行きかた</label>
+        <select id="iMode"></select>
         <button class="btn" onclick="judge()">入るか見る</button>
       </div>
     </div>
     <div id="idOut"></div>
   </section>
+
+  <!-- ================= 設定 ================= -->
+  <section class="pg" id="pg-set">
+    <h2>いま居る場所</h2>
+    <div class="card">
+      <button class="btn sec" onclick="locate()">📍 現在地を取り直す</button>
+      <div style="height:10px"></div>
+      <div class="f">
+        <label>いま居る場所の呼び名（表示だけに使う）</label>
+        <input type="text" id="sHere" oninput="S.hereName=this.value;save();render()">
+      </div>
+      <div class="geo" id="setGeo" style="margin-top:8px"></div>
+    </div>
+
+    <h2>逆算のクセ</h2>
+    <div class="card">
+      <div class="f">
+        <label>出発前の余裕（分）— 準備・忘れ物・迷いの分</label>
+        <input type="number" id="sBuf" min="0" step="5" oninput="S.buffer=+this.value||0;save();render()">
+        <label>見積りの甘さ補正（%）— やることの時間をこれだけ増やす</label>
+        <input type="number" id="sFudge" min="0" step="10" oninput="S.fudge=+this.value||0;save();render()">
+        <label>移動時間の迂回補正（%）— 直線距離をこれだけ増やして道のりにする</label>
+        <input type="number" id="sDet" min="0" step="5" oninput="S.detour=+this.value||0;save();render()">
+      </div>
+    </div>
+
+    <h2>バックアップ</h2>
+    <div class="card">
+      <div class="two">
+        <button class="btn sec" onclick="exportBackup()">書き出す</button>
+        <button class="btn sec" onclick="document.getElementById('bkFile').click()">読み込む</button>
+      </div>
+      <input type="file" id="bkFile" accept="application/json,.json" style="display:none" onchange="importBackup(this)">
+      <div style="height:10px"></div>
+      <p class="tiny">予定・サブ目標はこの端末の中だけに保存されます。ホーム画面から削除すると消えるので、ときどき書き出してください。<br><br>
+      現在地の座標はどこにも送信しません。<b>住所を「調べる」を押したときだけ</b>、その住所の文字だけを
+      OpenStreetMap（Nominatim）に送って緯度経度に変換します。位置情報そのものは送りません。</p>
+    </div>
+
+    <h2>やり直す</h2>
+    <div class="card">
+      <button class="btn sec" onclick="if(confirm('全部消す？ 先に書き出しておくのを勧めます'))reset()">全部リセット</button>
+    </div>
+  </section>
 </div>
 
 <nav>
   <button class="on" data-p="now"><i>◎</i>いま</button>
-  <button data-p="anc"><i>⚑</i>譲れない</button>
-  <button data-p="task"><i>☰</i>やること</button>
+  <button data-p="anc"><i>⚑</i>予定</button>
   <button data-p="idea"><i>✦</i>ひらめき</button>
+  <button data-p="set"><i>⚙</i>設定</button>
 </nav>
 
 <script>
-/* ---------- state ---------- */
-const KEY='gyakusan.v1';
-const DEF={
-  hereName:'家', buffer:10, fudge:20, here:null,
-  places:[{id:'p1',name:'職場',min:30},{id:'p2',name:'スーパー',min:10}],
-  anchors:[], tasks:[]
-};
+/* ================= state ================= */
+const KEY='gyakusan.v2', OLDKEY='gyakusan.v1';
+const DEF={hereName:'家', here:null, buffer:10, fudge:20, detour:25, anchors:[]};
 let S=load();
-function load(){try{const r=localStorage.getItem(KEY);return r?Object.assign({},DEF,JSON.parse(r)):structuredClone(DEF)}catch(e){return structuredClone(DEF)}}
-function save(){localStorage.setItem(KEY,JSON.stringify(S))}
-function reset(){S=structuredClone(DEF);save();render()}
-const uid=()=>Math.random().toString(36).slice(2,9);
-const place=id=>S.places.find(p=>p.id===id)||null;
 
-/* ---------- time helpers ---------- */
+function load(){
+  try{
+    const r=localStorage.getItem(KEY);
+    if(r)return Object.assign({},DEF,JSON.parse(r));
+    const o=localStorage.getItem(OLDKEY);
+    if(o)return migrate(JSON.parse(o));
+  }catch(e){}
+  return structuredClone(DEF);
+}
+/* v1（場所リスト＋フラットなやること）を v2（目標＋サブ目標）に移す */
+function migrate(v1){
+  const s=Object.assign({},DEF,{hereName:v1.hereName,here:v1.here,buffer:v1.buffer,fudge:v1.fudge});
+  const pm={}; (v1.places||[]).forEach(p=>pm[p.id]=p);
+  s.anchors=(v1.anchors||[]).map(a=>{
+    const p=pm[a.placeId];
+    return {id:a.id,title:a.title,at:a.at,addr:p?p.name:'',lat:p?p.lat:null,lng:p?p.lng:null,
+            mode:p?(p.mode||'walk'):'walk',travelMin:p?p.min:null,subs:[]};
+  });
+  const host=s.anchors[0];
+  if(host)host.subs=(v1.tasks||[]).filter(t=>!t.done).map(t=>{
+    const p=pm[t.placeId];
+    return {id:t.id,title:t.title,min:t.min,addr:p?p.name:'',lat:p?p.lat:null,lng:p?p.lng:null,
+            mode:p?(p.mode||'walk'):'walk',travelMin:p?p.min:null,on:t.on!==false,done:false};
+  });
+  return s;
+}
+function save(){localStorage.setItem(KEY,JSON.stringify(S))}
+function reset(){S=structuredClone(DEF);localStorage.removeItem(OLDKEY);save();render()}
+const uid=()=>Math.random().toString(36).slice(2,9);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ================= 時間 ================= */
 const pad=n=>String(n).padStart(2,'0');
 const DOW=['日','月','火','水','木','金','土'];
-function hm(d){return pad(d.getHours())+':'+pad(d.getMinutes())}
+const hm=d=>pad(d.getHours())+':'+pad(d.getMinutes());
+const ymd=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const plus=(d,m)=>new Date(d.getTime()+m*60000);
+const fudged=m=>Math.round(m*(1+(S.fudge||0)/100));
 function dur(m){m=Math.round(m);if(m<0)m=0;const h=Math.floor(m/60),r=m%60;
   return h?(r?h+'時間'+r+'分':h+'時間'):r+'分'}
-function localISO(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes())}
-function plus(d,m){return new Date(d.getTime()+m*60000)}
-const fudged=m=>Math.round(m*(1+(S.fudge||0)/100));
 
-/* ---------- core: 逆算 ---------- */
-function plan(){
-  const now=new Date();
-  const up=S.anchors.map(a=>({...a,d:new Date(a.at)}))
-    .filter(a=>!isNaN(a.d)&&a.d>now).sort((x,y)=>x.d-y.d);
-  const A=up[0]||null;
-  let travel=0,leaveBy=null,free=Infinity;
-  if(A){
-    const p=place(A.placeId);
-    travel=p?p.min:0;
-    leaveBy=plus(A.d,-(travel+(S.buffer||0)));
-    free=(leaveBy-now)/60000;
-  }
-  return {now,A,up,travel,leaveBy,free};
-}
-
-/* タスクが今の空き時間に入るか */
-function fit(t,P){
-  const need=fudged(t.min);
-  const p=place(t.placeId);
-  if(!p){ // どこでもOK
-    return {kind:'any',need,ok:P.free>=need,short:need-P.free};
-  }
-  if(P.A && P.A.placeId===t.placeId){ // 予定と同じ場所 → 早く行ってそこでやる
-    const total=p.min+need+(S.buffer||0);
-    const limit=(P.A.d-P.now)/60000;
-    return {kind:'onway',need:total,ok:limit>=total,short:total-limit,
-            note:'先に'+p.name+'へ行ってそこでやる'};
-  }
-  const total=p.min*2+need; // 往復
-  return {kind:'trip',need:total,ok:P.free>=total,short:total-P.free,
-          note:p.name+'まで往復'+(p.min*2)+'分'};
-}
-
-/* ---------- 現在地 / 移動時間の推定 ---------- */
+/* ================= 位置・移動時間 ================= */
 const MODES={walk:{n:'徒歩',v:4.5,f:0},bike:{n:'自転車',v:13,f:2},
              car:{n:'車',v:25,f:5},train:{n:'電車・バス',v:30,f:12}};
-const DETOUR=1.25; // 直線距離→実際の道のり補正
 function kmBetween(a,b){
   const R=6371,r=Math.PI/180;
   const dLat=(b.lat-a.lat)*r,dLng=(b.lng-a.lng)*r;
   const x=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLng/2)**2;
   return 2*R*Math.asin(Math.sqrt(x));
 }
-function estimate(p){
-  if(!S.here||p.lat==null)return null;
-  const d=kmBetween(S.here,p)*DETOUR, M=MODES[p.mode||'walk'];
-  return {km:d, min:Math.max(1,Math.round(d/M.v*60+M.f)), mode:M.n};
+function legMin(from,to,mode){
+  if(!from||!to||from.lat==null||to.lat==null)return null;
+  const d=kmBetween(from,to)*(1+(S.detour||0)/100), M=MODES[mode||'walk'];
+  return {min:Math.max(1,Math.round(d/M.v*60+M.f)), km:d, mode:M.n};
 }
+const hasPlace=x=>!!((x.addr&&x.addr.trim())||x.travelMin!=null||x.lat!=null);
+
 function locate(){
   if(!navigator.geolocation)return alert('この端末では現在地が取れません');
   const el=document.getElementById('hereGeo'); el.textContent='取得中…'; el.className='';
-  navigator.geolocation.getCurrentPosition(pos=>{
-    S.here={lat:pos.coords.latitude,lng:pos.coords.longitude,
-            acc:Math.round(pos.coords.accuracy),at:Date.now()};
-    let n=0;
-    S.places.forEach(p=>{const e=estimate(p); if(e&&!p.manual){p.min=e.min;n++}});
-    save();render();
-    if(n)toast(n+'か所の移動時間を更新した');
-  },err=>{
-    render();
-    alert('現在地が取れませんでした（'+err.message+'）\n・位置情報の許可を確認\n・https か localhost でないと使えません');
-  },{enableHighAccuracy:true,timeout:12000,maximumAge:30000});
+  navigator.geolocation.getCurrentPosition(p=>{
+    S.here={lat:p.coords.latitude,lng:p.coords.longitude,acc:Math.round(p.coords.accuracy),at:Date.now()};
+    save();render();toast('現在地を取った。移動時間を計算し直したよ');
+  },e=>{render();alert('現在地が取れませんでした（'+e.message+'）\n・位置情報の許可を確認\n・https か localhost でないと使えません');},
+  {enableHighAccuracy:true,timeout:12000,maximumAge:30000});
 }
-function pinPlace(id){
-  if(!navigator.geolocation)return alert('この端末では現在地が取れません');
-  navigator.geolocation.getCurrentPosition(pos=>{
-    const p=place(id); if(!p)return;
-    p.lat=pos.coords.latitude; p.lng=pos.coords.longitude;
-    save();render();toast(p.name+' の場所を覚えた');
-  },e=>alert('取れませんでした：'+e.message),{enableHighAccuracy:true,timeout:12000});
+
+/* 住所 → 緯度経度（OpenStreetMap Nominatim。住所の文字だけを送る） */
+let _lastGeo=0;
+async function geoOnce(q){
+  const wait=Math.max(0,1100-(Date.now()-_lastGeo));
+  if(wait)await new Promise(r=>setTimeout(r,wait));
+  _lastGeo=Date.now();
+  const url='https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ja&q='+encodeURIComponent(q);
+  const r=await fetch(url);
+  if(!r.ok)throw new Error('住所の検索に失敗した（'+r.status+'）');
+  const j=await r.json();
+  if(!j.length)return null;
+  return {lat:+j[0].lat,lng:+j[0].lon,label:j[0].display_name};
 }
-function setMode(id,m){const p=place(id);if(!p)return;p.mode=m;
-  const e=estimate(p); if(e&&!p.manual)p.min=e.min; save();render()}
-function useEst(id){const p=place(id);const e=estimate(p);if(!e)return;
-  p.min=e.min;p.manual=false;save();render()}
+/* 日本の番地は地図データに無いことが多い。末尾の数字を段階的に落として当てにいく */
+function addrVariants(q){
+  const out=[q.trim()]; let prev=q.trim();
+  for(let i=0;i<3;i++){
+    const n=prev.replace(/[\s,、]*[0-9０-９]+\s*(丁目|番地?|号)?([-－ー‐‑–—][0-9０-９]+\s*(丁目|番地?|号)?)*\s*$/,'').trim();
+    if(n&&n!==prev){out.push(n);prev=n}else break;
+  }
+  return [...new Set(out)].filter(Boolean);
+}
+async function geocode(q){
+  const vs=addrVariants(q);
+  for(const v of vs){
+    const g=await geoOnce(v);
+    if(g)return {...g, matched:v, exact:v===q.trim()};
+  }
+  throw new Error('見つからなかった。市区町村＋町名だけにするか、施設名（例：井の頭公園）で試してみて');
+}
+/* 3つのフォーム（a=目標 / s=サブ / i=ひらめき）共通の住所検索 */
+const GEOBUF={a:null,s:null,i:null};
+async function lookup(k){
+  const inp=document.getElementById(k+'Addr'), out=document.getElementById(k+'Geo');
+  const q=inp.value.trim();
+  if(!q){GEOBUF[k]=null;out.className='geo';out.textContent='';return}
+  out.className='geo wait';out.textContent='調べてる…';
+  try{
+    const g=await geocode(q);
+    GEOBUF[k]=g;
+    out.className='geo ok';
+    out.innerHTML='✓ '+esc(g.label)
+      +(g.exact?'':'<br><span style="color:#ffb454">※ 番地までは特定できず「'+esc(g.matched)+'」で計算します</span>')
+      +describeLeg(g,document.getElementById(k+'Mode').value);
+  }catch(e){
+    GEOBUF[k]=null;out.className='geo err';
+    out.textContent='× '+(e.message||e)+'（分数を手で入れれば逆算はできます）';
+  }
+}
+function describeLeg(g,mode){
+  const L=legMin(S.here,g,mode);
+  if(!L)return '<br><span style="color:#8d9aa8">現在地を取ると、ここまでの移動時間が出ます</span>';
+  let h='<br><span style="color:#8d9aa8">現在地から '+L.km.toFixed(1)+'km → '+L.mode+'で 約'+L.min+'分</span>';
+  if(L.km>100)h+='<br><span style="color:#ffb454">※ 遠すぎて直線距離の目安は当てになりません。'
+    +'追加したあと住所をタップして「◯分」と手で入れてください</span>';
+  return h;
+}
 function toast(m){
   let t=document.getElementById('toast');
   if(!t){t=document.createElement('div');t.id='toast';
     t.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:90px;background:#2c3947;'
-      +'color:#e8edf3;padding:11px 18px;border-radius:99px;font-size:13px;z-index:99;transition:opacity .3s';
+      +'color:#e8edf3;padding:11px 18px;border-radius:99px;font-size:13px;z-index:99;transition:opacity .3s;'
+      +'max-width:88%;text-align:center';
     document.body.appendChild(t)}
   t.textContent=m;t.style.opacity='1';
-  clearTimeout(t._x);t._x=setTimeout(()=>t.style.opacity='0',2200);
+  clearTimeout(t._x);t._x=setTimeout(()=>t.style.opacity='0',2600);
 }
 
-/* ---------- render ---------- */
+/* ================= 逆算の本体 ================= */
+function plan(){
+  const now=new Date();
+  const up=S.anchors.map(a=>({...a,d:new Date(a.at)}))
+    .filter(a=>!isNaN(a.d)&&a.d>now).sort((x,y)=>x.d-y.d);
+  const A=up[0]||null;
+  if(!A)return {now,A:null,up};
+
+  const untilAnchor=(A.d-now)/60000;
+  const subs=(A.subs||[]).filter(s=>!s.done);
+  const active=subs.filter(s=>s.on!==false);
+
+  let cur=S.here, curName=S.hereName||'いまの場所', sum=0;
+  const steps=[];
+  for(const s of active){
+    let tv=0, fromName=curName, unknown=false;
+    if(hasPlace(s)){
+      if(s.travelMin!=null)tv=s.travelMin;
+      else{const L=legMin(cur,s,s.mode); if(L)tv=L.min; else unknown=true}
+      if(s.lat!=null){cur=s;curName=s.title}
+    }
+    const work=fudged(s.min);
+    steps.push({s,tv,work,fromName,unknown});
+    sum+=tv+work;
+  }
+  let toAnchor=0, anchorUnknown=false;
+  if(hasPlace(A)){
+    if(A.travelMin!=null)toAnchor=A.travelMin;
+    else{const L=legMin(cur,A,A.mode); if(L)toAnchor=L.min; else anchorUnknown=true}
+  }
+  const buffer=S.buffer||0;
+  const need=sum+toAnchor+buffer;
+  const slack=untilAnchor-need;
+  return {now,A,up,untilAnchor,subs,active,steps,sum,toAnchor,anchorUnknown,
+          fromNameToAnchor:curName,buffer,need,slack,startBy:plus(A.d,-need)};
+}
+
+/* ================= 描画 ================= */
 function render(){
   const P=plan();
   document.getElementById('clock').innerHTML=hm(P.now)+'<span>'+DOW[P.now.getDay()]+'</span>';
   document.getElementById('hereName').textContent=S.hereName||'ここ';
   const hg=document.getElementById('hereGeo');
-  if(S.here){const mn=Math.round((Date.now()-S.here.at)/60000);
-    hg.className='';hg.textContent='📍 取得ずみ ±'+S.here.acc+'m'+(mn>2?'（'+mn+'分前）':'');}
-  else if(hg.textContent!=='取得中…'){hg.className='no';hg.textContent='タップで現在地を取る';}
-  const sh=document.getElementById('sHere'); if(document.activeElement!==sh)sh.value=S.hereName||'';
-  const sb=document.getElementById('sBuf'); if(document.activeElement!==sb)sb.value=S.buffer;
-  const sf=document.getElementById('sFudge'); if(document.activeElement!==sf)sf.value=S.fudge;
-  renderNow(P); renderAnc(P); renderTask(P); syncSelects();
+  const geoTxt=S.here
+    ? '📍 取得ずみ ±'+S.here.acc+'m'+(Math.round((Date.now()-S.here.at)/60000)>2?'（'+Math.round((Date.now()-S.here.at)/60000)+'分前）':'')
+    : 'タップで現在地を取る';
+  if(hg.textContent!=='取得中…'){hg.className=S.here?'':'no';hg.textContent=geoTxt}
+  const sg=document.getElementById('setGeo');
+  sg.className=S.here?'geo ok':'geo';
+  sg.textContent=S.here?'✓ 取得ずみ（誤差 ±'+S.here.acc+'m）':'まだ取っていません。取ると住所から移動時間を自動で出せます。';
+  syncField('sHere',S.hereName||''); syncField('sBuf',S.buffer); syncField('sFudge',S.fudge); syncField('sDet',S.detour);
+  renderNow(P); renderAnc(P); syncParent();
 }
-
-function sched(P){
-  const live=S.tasks.filter(t=>!t.done);
-  let acc=0;
-  const rows=live.map(t=>{
-    const f=fit(t,P), on=t.on!==false;
-    if(on)acc+=f.need;
-    return {t,f,on,cum:acc};
-  });
-  return {rows,acc,bal:P.free-acc};
-}
+function syncField(id,v){const e=document.getElementById(id);if(e&&document.activeElement!==e)e.value=v}
 
 function renderNow(P){
   const el=document.getElementById('nowBody'); let h='';
-  const SC=sched(P), rows=SC.rows, bal=SC.bal;
-
   if(!P.A){
-    h+='<div class="hero"><div class="lbl">約束（動かせない予定）</div>'
+    h='<div class="hero"><div class="lbl">約束（動かせない予定）</div>'
       +'<div class="big" style="font-size:26px">まだ入ってない</div>'
-      +'<div class="sub">「譲れない」タブで1つ入れると、そこまで何時間あるかが出る。</div></div>';
-  }else{
-    const p=place(P.A.placeId), late=P.free<=0;
-    h+='<div class="hero'+(late?' go':'')+'">'
-      +'<div class="lbl">'+esc(P.A.title)+'（'+hm(P.A.d)+(p?' ・'+esc(p.name):'')+'）まで</div>'
-      +'<div class="big">'+(late?'もう出る時間':'あと '+dur(P.free))+'</div>'
-      +'<div class="sub">'+(p?hm(P.leaveBy)+' に出発。移動'+p.min+'分＋余裕'+S.buffer+'分はもう引いてある。'
-                            :hm(P.leaveBy)+' には手を止める。')+'</div>'
-      +'<div class="ldg">'
-      +'<div class="lr"><span>自由に使える時間</span><b>'+dur(P.free)+'</b></div>';
-    const sel=rows.filter(r=>r.on);
-    if(sel.length) sel.forEach(r=>{
-      h+='<div class="lr m"><span>− '+esc(r.t.title)+(r.f.kind!=='any'?' <i>移動込</i>':'')+'</span><b>−'+dur(r.f.need)+'</b></div>';
-    }); else h+='<div class="lr m"><span>引くものが選ばれてない</span><b>0分</b></div>';
-    h+='<div class="lr tot'+(bal<0?' bad':'')+'"><span>'+(bal<0?'足りない':'のこり')+'</span><b>'
-      +(bal<0?'−'+dur(-bal):dur(bal))+'</b></div></div>'
-      +'<div class="bar"><i style="width:'+Math.max(0,Math.min(100,bal/Math.max(1,P.free)*100))
-      +'%;background:'+(bal<0?'var(--ng)':'var(--ok)')+'"></i></div></div>';
+      +'<div class="sub">「予定」タブで1つ入れると、そこまで何時間あるかが出る。</div></div>';
+    el.innerHTML=h;return;
+  }
+  const A=P.A, late=P.slack<0;
+  h+='<div class="hero'+(late?' go':'')+'">'
+    +'<div class="lbl">'+esc(A.title)+'（'+hm(A.d)+(A.addr?' ・'+esc(shortAddr(A.addr)):'')+'）まで</div>'
+    +'<div class="big">あと '+dur(P.untilAnchor)+'</div>'
+    +'<div class="sub">'+(late
+      ? '全部やるには <b style="color:#ff6b6b">'+dur(-P.slack)+' 足りない</b>。どれか外すか、短くする。'
+      : '全部やるなら <b style="color:#e8edf3">'+hm(P.startBy)+'</b> までに動き出せばいい。')+'</div>'
+    +'<div class="ldg">'
+    +'<div class="lr"><span>約束まで</span><b>'+dur(P.untilAnchor)+'</b></div>';
+
+  if(!P.steps.length&&!P.toAnchor)h+='<div class="lr m"><span>引くものがまだ無い</span><b>0分</b></div>';
+  P.steps.forEach(st=>{
+    if(st.tv||st.unknown)h+='<div class="lr mv"><span>🚶 '+esc(st.fromName)+' → '+esc(st.s.title)+'</span><b>'
+      +(st.unknown?'?':'−'+dur(st.tv))+'</b></div>';
+    h+='<div class="lr m"><span>'+esc(st.s.title)+'</span><b>−'+dur(st.work)+'</b></div>';
+  });
+  if(P.toAnchor||P.anchorUnknown)
+    h+='<div class="lr mv"><span>🚶 '+esc(P.fromNameToAnchor)+' → '+esc(A.title)+'</span><b>'
+      +(P.anchorUnknown?'?':'−'+dur(P.toAnchor))+'</b></div>';
+  if(P.buffer)h+='<div class="lr m"><span>出発前の余裕</span><b>−'+dur(P.buffer)+'</b></div>';
+  h+='<div class="lr tot'+(late?' bad':'')+'"><span>'+(late?'足りない':'のこり')+'</span><b>'
+    +(late?'−'+dur(-P.slack):dur(P.slack))+'</b></div></div>'
+    +'<div class="bar"><i style="width:'+Math.max(0,Math.min(100,P.slack/Math.max(1,P.untilAnchor)*100))
+    +'%;background:'+(late?'var(--ng)':'var(--ok)')+'"></i></div></div>';
+
+  if(P.steps.length){
+    const st=P.steps[0];
+    h+='<div class="nowtask"><div class="lbl">'+(st.tv?'まず これ に向かう':'まず これ だけやる')+'</div>'
+      +'<div class="t">'+esc(st.s.title)+'</div>'
+      +'<div class="m">'+(st.tv?'移動'+dur(st.tv)+' ＋ ':'')+dur(st.work)
+      +'　→ '+hm(plus(P.now,st.tv+st.work))+' に終わる</div></div>';
   }
 
-  const on=rows.filter(r=>r.on);
-  if(on.length){
-    const r=on[0];
-    h+='<div class="nowtask"><div class="lbl">まず これ だけやる</div>'
-      +'<div class="t">'+esc(r.t.title)+'</div>'
-      +'<div class="m">'+dur(r.f.need)+(r.f.note?' ／ '+r.f.note:' ／ ここでできる')
-      +'　→ '+hm(plus(P.now,r.f.need))+' に終わる</div></div>';
-  }
+  /* タイムライン */
+  h+='<h2>逆算タイムライン</h2><div class="card"><div class="tl">';
+  let c=new Date(P.now);
+  h+=tli(hm(c),'いま','');
+  P.steps.forEach(st=>{
+    if(st.tv){c=plus(c,st.tv);h+=tli(hm(c),'<span class="mvx">'+esc(st.s.title)+' 着</span>（移動'+dur(st.tv)+'）','mv')}
+    const e=plus(c,st.work);
+    h+=tli(hm(c)+'–'+hm(e),esc(st.s.title),'');
+    c=e;
+  });
+  if(P.slack>0){h+=tli(hm(c)+'–'+hm(plus(c,P.slack)),'空き '+dur(P.slack),'');c=plus(c,P.slack)}
+  if(P.toAnchor){
+    h+=tli(hm(c),'🚶 '+esc(A.title)+'へ出発（'+dur(P.toAnchor)+'）','k');c=plus(c,P.toAnchor);
+    h+=tli(hm(c),'着'+(P.buffer?'（余裕'+dur(P.buffer)+'）':''),'');
+  }else if(P.buffer)h+=tli(hm(c),'余裕 '+dur(P.buffer),'');
+  h+=tli(hm(A.d),'⚑ '+esc(A.title),'f');
+  h+='</div></div>';
 
-  const here=rows.filter(r=>r.f.kind==='any'), go=rows.filter(r=>r.f.kind!=='any');
-  h+='<h2>🌀 いまここでできる（移動いらない）</h2>';
-  h+=here.length?here.map(r=>rowHTML(r,'g',dur(fudged(r.t.min)))).join(''):'<div class="empty">なし</div>';
-  h+='<h2>📍 行かないとできない</h2>';
-  h+=go.length?go.map(r=>rowHTML(r,'a',dur(r.f.need)+'（移動込）')).join(''):'<div class="empty">なし</div>';
-  h+='<div class="tiny" style="padding:2px 4px 8px">タップで 入れる／外す。外したものは引き算に入らない。</div>';
+  if(!S.here&&(A.addr||P.subs.some(s=>s.addr)))
+    h+='<div class="card" style="border-color:#4a3a22;background:#241d13"><div class="muted">'
+      +'📍 住所は入ってるけど<b>現在地がまだ</b>。上の「いま居る場所」をタップすると、移動時間が全部入る。</div></div>';
 
-  if(P.A){
-    h+='<h2>逆算タイムライン</h2><div class="card"><div class="tl">';
-    let c=new Date(P.now);
-    h+=tli(hm(c),'いま','');
-    on.forEach(r=>{
-      const e=plus(c,r.f.need);
-      const over=e>P.leaveBy;
-      h+=tli(hm(c)+'–'+hm(e),(over?'⚠️ ':'')+esc(r.t.title)+(over?'（はみ出る）':''),over?'f':'');
-      c=e;
-    });
-    if(bal>0)h+=tli(hm(c)+'–'+hm(P.leaveBy),'空き '+dur(bal),'');
-    const p=place(P.A.placeId);
-    if(p)h+=tli(hm(P.leaveBy),'🚶 出発（'+esc(p.name)+'へ '+p.min+'分）','k');
-    h+=tli(hm(P.A.d),'⚑ '+esc(P.A.title),'f');
-    h+='</div></div>';
-  }
-  h+='<div class="tiny" style="padding:4px 4px 20px">※ 所要時間は入力に +'+(S.fudge||0)+'% した数字。場所つきは片道×2の往復で計算。</div>';
+  h+='<div class="tiny" style="padding:4px 4px 20px">※ やることの時間は入力に +'+(S.fudge||0)
+    +'% した数字。移動は住所どうしの直線距離 +'+(S.detour||0)+'% を行きかたの速さで割った目安。</div>';
   el.innerHTML=h;
 }
-function tli(t,x,c){return '<div class="tli '+c+'"><time>'+t+'</time><div>'+x+'</div></div>'}
-function rowHTML(r,cls,met){
-  const t=r.t;
-  return '<div class="row '+cls+(r.on?'':' off')+'" onclick="toggleOn(\''+t.id+'\')">'
-    +'<div class="ck'+(r.on?' on':'')+'">'+(r.on?'✓':'')+'</div>'
-    +'<div class="ttl">'+esc(t.title)+'</div>'
-    +'<div class="met">'+met+'</div>'
-    +'<button class="dn" onclick="event.stopPropagation();doneTask(\''+t.id+'\')">済</button></div>';
-}
-function toggleOn(id){const t=S.tasks.find(x=>x.id===id);if(t)t.on=(t.on===false);save();render()}
+const tli=(t,x,c)=>'<div class="tli '+c+'"><time>'+t+'</time><div>'+x+'</div></div>';
+const shortAddr=a=>{const p=String(a).split(',');return p.length>2?p.slice(0,2).join(',').trim():String(a)};
 
 function renderAnc(P){
   const el=document.getElementById('ancList');
-  if(!S.anchors.length){el.innerHTML='<div class="empty">まだ無い。<br>「◯時にここに居ないといけない」を入れる。</div>';return}
-  el.innerHTML=S.anchors.slice().sort((a,b)=>new Date(a.at)-new Date(b.at)).map(a=>{
-    const d=new Date(a.at),p=place(a.placeId),past=d<P.now;
-    return '<div class="row'+(past?' x':'')+'"><div class="ico">⚑</div><div class="ttl">'+esc(a.title)
-      +(p?'<span class="tagp">'+esc(p.name)+'</span>':'')+'</div>'
-      +'<div class="met">'+(d.getDate()!==P.now.getDate()?(d.getMonth()+1)+'/'+d.getDate()+' ':'')+hm(d)+'</div>'
-      +'<button class="del" onclick="del(\'anchors\',\''+a.id+'\')">×</button></div>';
+  if(document.activeElement&&el.contains(document.activeElement))return;
+  const list=S.anchors.slice().sort((a,b)=>new Date(a.at)-new Date(b.at));
+  if(!list.length){el.innerHTML='<div class="empty">まだ無い。<br>「◯時にここに居ないといけない」を入れる。</div>';return}
+  el.innerHTML=list.map(a=>{
+    const d=new Date(a.at), past=d<P.now, isNext=P.A&&P.A.id===a.id;
+    let h='<div class="acard'+(past?' past':'')+(isNext?' next':'')+'">'
+      +'<div class="ahd"><div class="t">'+esc(a.title)+'</div>'
+      +'<div class="w">'+(d.getDate()!==P.now.getDate()?(d.getMonth()+1)+'/'+d.getDate()+' ':'')+hm(d)+'</div>'
+      +'<button class="del" onclick="delAnchor(\''+a.id+'\')">×</button></div>';
+    h+=addrLine(a,'anchor');
+    const subs=(a.subs||[]);
+    h+='<div class="subs">';
+    h+=subs.length?subs.map(s=>{
+      const on=s.on!==false&&!s.done;
+      let met=dur(fudged(s.min));
+      if(hasPlace(s)){
+        const L=s.travelMin!=null?{min:s.travelMin}:legMin(S.here,s,s.mode);
+        if(L)met='移動'+L.min+'分＋'+met;
+      }
+      return '<div class="srow'+(on?'':' off')+'">'
+        +'<div class="ck'+(on?' on':'')+'" onclick="toggleSub(\''+a.id+'\',\''+s.id+'\')">'+(on?'✓':'')+'</div>'
+        +'<div class="ttl">'+esc(s.title)
+        +(s.addr?'<small>📍 '+esc(shortAddr(s.addr))+(s.lat==null?'（未検索）':'')+'</small>':'<small>どこでもできる</small>')
+        +'</div><div class="met">'+met+'</div>'
+        +'<button class="del" onclick="delSub(\''+a.id+'\',\''+s.id+'\')">×</button></div>';
+    }).join(''):'<div class="tiny" style="padding:4px 2px">サブ目標はまだ無い。上のフォームから足せる。</div>';
+    return h+'</div></div>';
   }).join('');
 }
-
-function renderTask(P){
-  const el=document.getElementById('taskList');
-  const live=S.tasks.filter(t=>!t.done);
-  el.innerHTML=live.length?live.map(t=>{
-    const p=place(t.placeId);
-    return '<div class="row"><div class="ico">'+(p?'📍':'🌀')+'</div><div class="ttl">'+esc(t.title)
-      +(p?'<span class="tagp">'+esc(p.name)+'</span>':'<span class="taga">どこでも</span>')+'</div>'
-      +'<div class="met">'+t.min+'分</div>'
-      +'<button class="del" onclick="del(\'tasks\',\''+t.id+'\')">×</button></div>';
-  }).join(''):'<div class="empty">まだ無い</div>';
-
-  document.getElementById('placeList').innerHTML=S.places.map(p=>{
-    const e=estimate(p);
-    let h='<div class="pcard"><div class="top"><div class="ico">📍</div>'
-      +'<div class="ttl">'+esc(p.name)+'</div>'
-      +'<button class="gps'+(p.lat!=null?' has':'')+'" onclick="pinPlace(\''+p.id+'\')">'
-      +(p.lat!=null?'✓ 場所を覚えてる':'ここで登録')+'</button>'
-      +'<button class="del" onclick="del(\'places\',\''+p.id+'\')">×</button></div>'
-      +'<div class="ctl">片道 <input type="number" value="'+p.min+'" step="5" '
-      +'onchange="setMin(\''+p.id+'\',this.value)"> 分'
-      +'<select onchange="setMode(\''+p.id+'\',this.value)">'
-      +Object.keys(MODES).map(k=>'<option value="'+k+'"'+((p.mode||'walk')===k?' selected':'')+'>'+MODES[k].n+'</option>').join('')
-      +'</select></div>';
-    if(e)h+='<div class="est">現在地から <b>'+e.km.toFixed(1)+'km</b> → '+e.mode+'で <b>約'+e.min+'分</b>'
-      +(p.min!==e.min?' <button class="gps" style="padding:3px 8px;margin-left:4px" onclick="useEst(\''+p.id+'\')">これを使う</button>':'')
-      +'</div>';
-    else if(p.lat!=null)h+='<div class="est">現在地を取ると自動で分数を出せる</div>';
-    else h+='<div class="est">その場所に居るときに「ここで登録」を押すと、次から距離で自動計算できる</div>';
-    return h+'</div>';
-  }).join('')||'<div class="empty">場所がまだ無い</div>';
+function addrLine(a){
+  if(!a.addr)return '<div class="addr no" onclick="editAddr(\''+a.id+'\')">＋ 住所を入れる（行く必要があるなら）</div>';
+  let h='<div class="addr" onclick="editAddr(\''+a.id+'\')">📍 '+esc(shortAddr(a.addr));
+  if(a.travelMin!=null)h+=' ／ <b>片道'+a.travelMin+'分</b>（手入力）';
+  else{
+    const L=legMin(S.here,a,a.mode);
+    if(L)h+=' ／ '+L.km.toFixed(1)+'km → '+L.mode+'で <b>約'+L.min+'分</b>'
+      +(L.km>100?' <span style="color:#ffb454">※遠すぎて目安になりません。タップして「◯分」と手入力を</span>':'');
+    else if(a.lat==null)h+=' ／ <span class="no">未検索（タップして入れ直す）</span>';
+    else h+=' ／ <span class="no">現在地を取ると分数が出る</span>';
+  }
+  return h+'</div>';
+}
+function syncParent(){
+  const e=document.getElementById('sParent'); if(document.activeElement===e)return;
+  const v=e.value, now=new Date();
+  const list=S.anchors.slice().sort((a,b)=>new Date(a.at)-new Date(b.at));
+  e.innerHTML=list.length
+    ? list.map(a=>{const d=new Date(a.at);
+        return '<option value="'+a.id+'">'+esc(a.title)+'（'+(d.getDate()!==now.getDate()?(d.getMonth()+1)+'/'+d.getDate()+' ':'')+hm(d)+'）</option>'}).join('')
+    : '<option value="">先に上で目標を追加してね</option>';
+  if(list.some(a=>a.id===v))e.value=v;
 }
 
-function syncSelects(){
-  const opts=(none)=>'<option value="">'+none+'</option>'
-    +S.places.map(p=>'<option value="'+p.id+'">'+esc(p.name)+'（片道'+p.min+'分）</option>').join('');
-  ['aP','tP'].forEach(id=>{const e=document.getElementById(id),v=e.value;
-    e.innerHTML=opts(id==='aP'?'行かなくていい':'どこでもできる');e.value=v});
-  const i=document.getElementById('iP'),v=i.value;
-  i.innerHTML=opts('どこでもできる')+'<option value="__new">＋ 新しい場所…</option>';i.value=v;
-}
-
-/* ---------- actions ---------- */
-function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function del(k,id){S[k]=S[k].filter(x=>x.id!==id);save();render()}
-function doneTask(id){const t=S.tasks.find(x=>x.id===id);if(t)t.done=true;save();render()}
-function setMin(id,v){const p=place(id);if(p){p.min=Math.max(0,+v||0);p.manual=true}save();render()}
+/* ================= 操作 ================= */
 function addAnchor(){
   const t=document.getElementById('aT').value.trim();
   const d=document.getElementById('aDate').value, tm=document.getElementById('aTime').value;
   if(!t||!d||!tm)return alert('なにと、いつ を入れてね');
-  const at=d+'T'+tm;
-  S.anchors.push({id:uid(),title:t,at,placeId:document.getElementById('aP').value||null});
-  save();document.getElementById('aT').value='';render();
+  const g=GEOBUF.a, addr=document.getElementById('aAddr').value.trim();
+  S.anchors.push({id:uid(),title:t,at:d+'T'+tm,
+    addr:g?g.label:addr, lat:g?g.lat:null, lng:g?g.lng:null,
+    mode:document.getElementById('aMode').value, travelMin:null, subs:[]});
+  save();
+  document.getElementById('aT').value='';
+  document.getElementById('aAddr').value='';
+  document.getElementById('aGeo').textContent='';GEOBUF.a=null;
+  render();toast('「'+t+'」を追加した');
 }
-function addTask(){
-  const t=document.getElementById('tT').value.trim();
+function addSub(){
+  const pid=document.getElementById('sParent').value;
+  if(!pid)return alert('先に「これだけは譲れないこと」を1つ追加してね');
+  const a=S.anchors.find(x=>x.id===pid); if(!a)return;
+  const t=document.getElementById('sT').value.trim();
   if(!t)return alert('なにをやる？');
-  S.tasks.push({id:uid(),title:t,min:+document.getElementById('tMin').value||30,
-    placeId:document.getElementById('tP').value||null,done:false,on:true});
-  save();document.getElementById('tT').value='';render();
+  const g=GEOBUF.s, addr=document.getElementById('sAddr').value.trim();
+  (a.subs=a.subs||[]).push({id:uid(),title:t,min:+document.getElementById('sMin').value||30,
+    addr:g?g.label:addr, lat:g?g.lat:null, lng:g?g.lng:null,
+    mode:document.getElementById('sMode').value, travelMin:null, on:true, done:false});
+  save();
+  document.getElementById('sT').value='';
+  document.getElementById('sAddr').value='';
+  document.getElementById('sGeo').textContent='';GEOBUF.s=null;
+  render();toast('「'+a.title+'」の下に足した');
 }
-function addPlace(){
-  const n=document.getElementById('pN').value.trim();
-  if(!n)return alert('場所の名前は？');
-  S.places.push({id:uid(),name:n,min:Math.max(0,+document.getElementById('pM').value||0),mode:'walk'});
-  save();document.getElementById('pN').value='';document.getElementById('pM').value='';render();
+function delAnchor(id){
+  const a=S.anchors.find(x=>x.id===id);
+  if(a&&(a.subs||[]).length&&!confirm('「'+a.title+'」とサブ目標'+a.subs.length+'件を消す？'))return;
+  S.anchors=S.anchors.filter(x=>x.id!==id);save();render();
+}
+function delSub(aid,sid){
+  const a=S.anchors.find(x=>x.id===aid); if(!a)return;
+  a.subs=(a.subs||[]).filter(s=>s.id!==sid);save();render();
+}
+function toggleSub(aid,sid){
+  const a=S.anchors.find(x=>x.id===aid); if(!a)return;
+  const s=(a.subs||[]).find(x=>x.id===sid); if(!s)return;
+  s.on=(s.on===false);save();render();
+}
+async function editAddr(aid){
+  const a=S.anchors.find(x=>x.id===aid); if(!a)return;
+  const q=prompt('住所を入れる（空にすると「行かなくていい」になります）\n分数を直接入れたいときは「30分」のように書いてもOK',a.addr||'');
+  if(q===null)return;
+  const v=q.trim();
+  if(!v){a.addr='';a.lat=null;a.lng=null;a.travelMin=null;save();render();return}
+  const m=v.match(/^(\d+)\s*分?$/);
+  if(m){a.addr=a.addr||'（手入力）';a.travelMin=+m[1];save();render();toast('片道'+m[1]+'分にした');return}
+  toast('住所を調べてる…');
+  try{const g=await geocode(v);a.addr=g.label;a.lat=g.lat;a.lng=g.lng;a.travelMin=null;save();render();toast('✓ '+shortAddr(g.label));}
+  catch(e){a.addr=v;a.lat=null;a.lng=null;save();render();alert(e.message||e)}
 }
 
-/* ---------- ひらめき判定 ---------- */
-function judge(){
-  const P=plan(), SC=sched(P);
+/* ================= ひらめき判定 ================= */
+async function judge(){
+  const P=plan();
   const title=document.getElementById('iT').value.trim()||'それ';
   const stay=+document.getElementById('iMin').value||60;
-  let pid=document.getElementById('iP').value,p=null;
-  if(pid==='__new'){
-    const n=document.getElementById('iNewN').value.trim();
-    const m=+document.getElementById('iNewM').value||0;
-    if(!n)return alert('場所の名前を入れて');
-    p={id:uid(),name:n,min:m};S.places.push(p);save();pid=p.id;
-    syncSelects();document.getElementById('iP').value=pid;
-  }else if(pid)p=place(pid);
+  const mode=document.getElementById('iMode').value;
+  const addr=document.getElementById('iAddr').value.trim();
+  let g=GEOBUF.i;
+  if(addr&&!g){await lookup('i');g=GEOBUF.i}
 
-  const f=fit({title,min:stay,placeId:pid||null},P);
   const out=document.getElementById('idOut');
-  const bal=SC.bal, after=bal-f.need;
-  let h='';
+  const work=fudged(stay);
+  let there=0, back=0, unknown=false;
+  if(g){
+    const L1=legMin(S.here,g,mode);
+    if(L1){there=L1.min; const L2=legMin(g,P.A&&P.A.lat!=null?P.A:S.here,mode); back=L2?L2.min:L1.min}
+    else unknown=true;
+  }else if(addr){unknown=true}
+  const cost=there+work+back;
 
   if(!P.A){
-    h='<div class="vd y"><div class="h">いける</div><div class="muted">約束が入ってないから時間の制限が無い。'
-      +'かかるのは '+dur(f.need)+'（'+hm(P.now)+' → '+hm(plus(P.now,f.need))+'）。</div></div>';
-  }else{
-    h+='<div class="vd '+(after>=0?'y':'n')+'"><div class="h">'+(after>=0?'間に合う':'間に合わない')+'</div>'
-      +'<div class="muted">'+(after>=0
-        ? 'やることを全部やっても <b style="color:var(--tx)">'+dur(after)+'</b> 余る。'
-        : '<b style="color:var(--tx)">'+dur(-after)+' 足りない。</b>')+'</div></div>';
-    h+='<div class="card"><div class="ldg" style="border:none;margin:0;padding:0">'
-      +'<div class="lr"><span>'+esc(P.A.title)+'まで使える</span><b>'+dur(P.free)+'</b></div>'
-      +'<div class="lr m"><span>− やること'+SC.rows.filter(r=>r.on).length+'件</span><b>−'+dur(SC.acc)+'</b></div>'
-      +'<div class="lr m"><span>− '+esc(title)+(p?' <i>'+esc(p.name)+' 往復'+(p.min*2)+'分＋'+stay+'分</i>':'')+'</span><b>−'+dur(f.need)+'</b></div>'
-      +'<div class="lr tot'+(after<0?' bad':'')+'"><span>'+(after<0?'足りない':'のこり')+'</span><b>'
-      +(after<0?'−'+dur(-after):dur(after))+'</b></div></div>';
-    if(after>=0){
-      const st=fudged(stay);
-      h+='<div style="height:12px"></div><div class="tl">'
-        +(p? tli(hm(P.now),'いま出る','')
-             +tli(hm(plus(P.now,p.min)),esc(p.name)+' 着','')
-             +tli(hm(plus(P.now,p.min+st)),'ここまで。切り上げる','k')
-             +tli(hm(plus(P.now,f.need)),'戻る','')
-           : tli(hm(P.now),'いま始める','')
-             +tli(hm(plus(P.now,f.need)),'終わり','k'))
-        +tli(hm(P.leaveBy),'🚶 '+esc(P.A.title)+'へ出発','f')
-        +'</div>';
-    }else{
-      const cut=Math.max(0,stay+after);
-      h+='<div style="height:12px"></div><div class="muted" style="font-size:14px">どうする？</div><div style="height:6px"></div>'
-        +'<div class="tiny">'
-        +(cut>=10?'・滞在を <b style="color:var(--tx)">'+dur(Math.floor(cut/5)*5)+'</b> に縮めれば入る<br>':'')
-        +'・やることをどれか外す（'+dur(-after)+' ぶん）<br>'
-        +'・'+esc(P.A.title)+' のあと（'+hm(P.A.d)+'〜）に回す</div>';
-    }
-    h+='<div style="height:12px"></div>'
-      +'<button class="btn sec" onclick="stash('+JSON.stringify(title).replace(/"/g,'&quot;')+','+stay+',\''+(pid||'')+'\')">やることリストに置いとく</button></div>';
+    out.innerHTML='<div class="vd y"><div class="h">いける</div><div class="muted">約束が入ってないから時間の制限が無い。'
+      +'かかるのは '+dur(cost)+'（'+hm(P.now)+' → '+hm(plus(P.now,cost))+'）。</div></div>';
+    return;
   }
+  if(unknown){
+    out.innerHTML='<div class="vd n"><div class="h">まだ判定できない</div><div class="muted">'
+      +(S.here?'住所が緯度経度になっていません。「調べる」を押してみて。':'現在地がまだ取れていません。ヘッダーの「いま居る場所」をタップ。')
+      +'</div></div>';
+    return;
+  }
+  const after=P.slack-cost;
+  let h='<div class="vd '+(after>=0?'y':'n')+'"><div class="h">'+(after>=0?'間に合う':'間に合わない')+'</div>'
+    +'<div class="muted">'+(after>=0
+      ? 'サブ目標を全部やっても <b style="color:var(--tx)">'+dur(after)+'</b> 余る。'
+      : '<b style="color:var(--tx)">'+dur(-after)+' 足りない。</b>')+'</div></div>';
+  h+='<div class="card"><div class="ldg" style="border:none;margin:0;padding:0">'
+    +'<div class="lr"><span>'+esc(P.A.title)+'までの「のこり」</span><b>'+dur(P.slack)+'</b></div>';
+  if(there)h+='<div class="lr mv"><span>🚶 行き</span><b>−'+dur(there)+'</b></div>';
+  h+='<div class="lr m"><span>'+esc(title)+'</span><b>−'+dur(work)+'</b></div>';
+  if(back)h+='<div class="lr mv"><span>🚶 そこから'+esc(P.A.title)+'の方へ</span><b>−'+dur(back)+'</b></div>';
+  h+='<div class="lr tot'+(after<0?' bad':'')+'"><span>'+(after<0?'足りない':'のこり')+'</span><b>'
+    +(after<0?'−'+dur(-after):dur(after))+'</b></div></div>';
+  if(after>=0){
+    h+='<div style="height:12px"></div><div class="tl">'
+      +tli(hm(P.now),there?'いま出る':'いま始める','')
+      +(there?tli(hm(plus(P.now,there)),'<span class="mvx">'+esc(title)+' 着</span>','mv'):'')
+      +tli(hm(plus(P.now,there+work)),'切り上げる','k')
+      +tli(hm(plus(P.now,cost)),back?'移動おわり':'おわり','')
+      +tli(hm(P.A.d),'⚑ '+esc(P.A.title),'f')+'</div>';
+  }else{
+    const cut=Math.max(0,stay+after);
+    h+='<div style="height:12px"></div><div class="muted" style="font-size:14px">どうする？</div><div style="height:6px"></div>'
+      +'<div class="tiny">'
+      +(cut>=10?'・滞在を <b style="color:var(--tx)">'+dur(Math.floor(cut/5)*5)+'</b> に縮めれば入る<br>':'')
+      +'・サブ目標をどれか外す（'+dur(-after)+' ぶん）<br>'
+      +'・'+esc(P.A.title)+' のあと（'+hm(P.A.d)+'〜）に回す</div>';
+  }
+  h+='<div style="height:12px"></div>'
+    +'<button class="btn sec" onclick="stashIdea()">サブ目標にして置いとく</button></div>';
   out.innerHTML=h;
 }
-function stash(title,min,pid){
-  S.tasks.push({id:uid(),title,min,placeId:pid||null,done:false,on:true});save();render();
-  document.getElementById('idOut').innerHTML='<div class="card muted">「'+esc(title)+'」をやることリストに置いた。</div>';
+function stashIdea(){
+  const P=plan(); if(!P.A)return alert('先に譲れない目標を追加してね');
+  const title=document.getElementById('iT').value.trim()||'思いつき';
+  const g=GEOBUF.i, addr=document.getElementById('iAddr').value.trim();
+  (P.A.subs=P.A.subs||[]);
+  const a=S.anchors.find(x=>x.id===P.A.id);
+  (a.subs=a.subs||[]).push({id:uid(),title,min:+document.getElementById('iMin').value||60,
+    addr:g?g.label:addr,lat:g?g.lat:null,lng:g?g.lng:null,
+    mode:document.getElementById('iMode').value,travelMin:null,on:false,done:false});
+  save();render();
+  toast('「'+a.title+'」の下に、外した状態で置いた');
 }
 
-/* ---------- バックアップ ---------- */
+/* ================= バックアップ ================= */
 function exportBackup(){
-  const blob=new Blob([JSON.stringify({key:KEY,savedAt:new Date().toISOString(),state:S},null,1)],
-    {type:'application/json'});
+  const blob=new Blob([JSON.stringify({key:KEY,savedAt:new Date().toISOString(),state:S},null,1)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
   a.download='逆算バックアップ_'+new Date().toISOString().slice(0,10)+'.json';
@@ -644,89 +759,81 @@ function exportBackup(){
   toast('✓ 書き出した');
 }
 function importBackup(input){
-  const file=input.files&&input.files[0]; input.value='';
-  if(!file)return;
+  const file=input.files&&input.files[0]; input.value=''; if(!file)return;
   const fr=new FileReader();
   fr.onload=()=>{
     try{
-      const d=JSON.parse(fr.result);
-      const st=d.state||d;
-      if(!st||!Array.isArray(st.tasks))throw new Error('中身が逆算のデータの形になっていません');
-      if(!confirm('今のデータを、このファイルの内容（予定'+(st.anchors||[]).length
-        +'件／やること'+st.tasks.length+'件）で置き換えます。よろしいですか？'))return;
-      S=Object.assign({},DEF,st); save(); render();
-      toast('✓ 読み込んだ');
-    }catch(e){ alert('読み込めませんでした: '+(e&&e.message||e)); }
+      const d=JSON.parse(fr.result); let st=d.state||d;
+      if(st&&Array.isArray(st.tasks)&&Array.isArray(st.places))st=migrate(st);
+      if(!st||!Array.isArray(st.anchors))throw new Error('中身が逆算のデータの形になっていません');
+      if(!confirm('今のデータを、このファイルの内容（目標'+st.anchors.length+'件）で置き換えます。よろしいですか？'))return;
+      S=Object.assign({},DEF,st);save();render();toast('✓ 読み込んだ');
+    }catch(e){alert('読み込めませんでした: '+(e&&e.message||e))}
   };
   fr.readAsText(file);
 }
 
-/* ---------- ui wiring ---------- */
+/* ================= UI 配線 ================= */
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
   document.querySelectorAll('.pg').forEach(p=>p.classList.toggle('on',p.id==='pg-'+b.dataset.p));
   window.scrollTo(0,0);
 });
+['aMode','sMode','iMode'].forEach(id=>{
+  const e=document.getElementById(id);
+  e.innerHTML=Object.keys(MODES).map(k=>'<option value="'+k+'">'+MODES[k].n+'</option>').join('');
+  e.value='walk';
+  e.onchange=()=>{const k=id[0], g=GEOBUF[k];
+    if(g)document.getElementById(k+'Geo').innerHTML='✓ '+esc(g.label)+describeLeg(g,e.value)};
+});
 function chipRow(el,input,vals){
-  el.innerHTML=vals.map(v=>'<button class="chip" data-v="'+v+'">'+(v>=60?(v/60)+'時間':v+'分')+'</button>').join('');
+  el.innerHTML=vals.map(v=>'<button type="button" class="chip" data-v="'+v+'">'+(v>=60?(v%60?v/60|0:v/60)+'時間'+(v%60?v%60+'分':''):v+'分')+'</button>').join('');
   el.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{
     input.value=c.dataset.v;
     el.querySelectorAll('.chip').forEach(x=>x.classList.toggle('on',x===c));
   });
 }
-function ymd(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
-function aSetDate(offsetDays){
-  const d=new Date(); d.setDate(d.getDate()+offsetDays);
+chipRow(document.getElementById('sMinChips'),document.getElementById('sMin'),[10,15,30,60,90,120]);
+chipRow(document.getElementById('iMinChips'),document.getElementById('iMin'),[30,60,120,180,240]);
+
+function aClearChips(){document.querySelectorAll('#aQuickChips .chip,#aDateChips .chip').forEach(c=>c.classList.remove('on'))}
+function aSetDate(off){
+  const d=new Date(); d.setDate(d.getDate()+off);
   document.getElementById('aDate').value=ymd(d);
   if(!document.getElementById('aTime').value)document.getElementById('aTime').value='09:00';
-  aMarkDateChip(offsetDays); aMarkQuickChip(null);
+  aClearChips();
+  document.querySelector('#aDateChips .chip[data-off="'+off+'"]').classList.add('on');
 }
-function aSetQuick(mins){
-  const d=new Date(Date.now()+mins*60000);
+function aSetQuick(m){
+  const d=new Date(Date.now()+m*60000);
   document.getElementById('aDate').value=ymd(d);
   document.getElementById('aTime').value=pad(d.getHours())+':'+pad(d.getMinutes());
-  aMarkQuickChip(mins); aMarkDateChip(null);
+  aClearChips();
+  document.querySelector('#aQuickChips .chip[data-m="'+m+'"]').classList.add('on');
 }
-function aSyncFromFields(){ aMarkDateChip(null); aMarkQuickChip(null); }
-function aMarkDateChip(off){
-  const dEl=document.getElementById('aDateChips');
-  dEl.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',off!==null&&+c.dataset.off===off));
-}
-function aMarkQuickChip(m){
-  const qEl=document.getElementById('aQuickChips');
-  qEl.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',m!==null&&+c.dataset.m===m));
-}
-(function initAncPicker(){
-  const today=new Date();
-  const dEl=document.getElementById('aDateChips');
-  dEl.innerHTML=[[0,'今日'],[1,'明日'],[2,'明後日']].map(([off,label])=>{
-    const d=new Date(today); d.setDate(d.getDate()+off);
-    return '<button type="button" class="chip" data-off="'+off+'" onclick="aSetDate('+off+')">'
-      +label+'<span style="opacity:.6"> '+(d.getMonth()+1)+'/'+d.getDate()+'</span></button>';
-  }).join('');
-  const qEl=document.getElementById('aQuickChips');
-  qEl.innerHTML=[[30,'30分後'],[60,'1時間後'],[120,'2時間後'],[180,'3時間後']].map(([m,label])=>
-    '<button type="button" class="chip" data-m="'+m+'" onclick="aSetQuick('+m+')">'+label+'</button>').join('');
+(function initPicker(){
+  const t=new Date();
+  document.getElementById('aDateChips').innerHTML=[[0,'今日'],[1,'明日'],[2,'明後日']].map(([o,l])=>{
+    const d=new Date(t);d.setDate(d.getDate()+o);
+    return '<button type="button" class="chip" data-off="'+o+'" onclick="aSetDate('+o+')">'+l
+      +'<span style="opacity:.6"> '+(d.getMonth()+1)+'/'+(d.getDate())+'</span></button>'}).join('');
+  document.getElementById('aQuickChips').innerHTML=[[30,'30分後'],[60,'1時間後'],[120,'2時間後'],[180,'3時間後']]
+    .map(([m,l])=>'<button type="button" class="chip" data-m="'+m+'" onclick="aSetQuick('+m+')">'+l+'</button>').join('');
+  aSetQuick(180);
 })();
-chipRow(document.getElementById('tMinChips'),document.getElementById('tMin'),[10,15,30,60,90,120]);
-chipRow(document.getElementById('iMinChips'),document.getElementById('iMin'),[30,60,120,180,240]);
-document.getElementById('iP').onchange=function(){
-  document.getElementById('iNewWrap').style.display=this.value==='__new'?'flex':'none';
-};
-aSetQuick(3*60);
 
-/* ---------- 版チェック（直したコードを端末に届ける） ---------- */
-const APP_VERSION='2026-08-20-2';
+/* ================= 版チェック ================= */
+const APP_VERSION='2026-08-20-3';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
-  document.querySelector('.wrap').appendChild(e);})();
+  document.querySelector('.wrap').appendChild(e)})();
 let _ck=false;
 async function checkVersion(){
-  if(_ck||!navigator.onLine)return; _ck=true;
+  if(_ck||!navigator.onLine)return;_ck=true;
   try{const r=await fetch('version.txt?t='+Date.now(),{cache:'no-store'});
     if(r.ok){const l=(await r.text()).trim();
       if(l&&l!==APP_VERSION&&sessionStorage.getItem('reloaded_for')!==l){
-        sessionStorage.setItem('reloaded_for',l);location.reload();}}
+        sessionStorage.setItem('reloaded_for',l);location.reload()}}
   }catch(e){}finally{_ck=false}
 }
 checkVersion();
@@ -734,7 +841,8 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 
 render();
 setInterval(render,15000);
-setInterval(()=>{const n=new Date();document.getElementById('clock').innerHTML=hm(n)+'<span>'+DOW[n.getDay()]+'</span>'},1000);
+setInterval(()=>{const n=new Date();
+  document.getElementById('clock').innerHTML=hm(n)+'<span>'+DOW[n.getDay()]+'</span>'},1000);
 </script>
 
 <script>
