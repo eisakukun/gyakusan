@@ -49,6 +49,7 @@ h2:first-child{margin-top:6px}
 .lr b{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
 .lr.m{color:var(--dim);font-size:13px}
 .lr.mv{color:var(--acc);font-size:13px}
+.lr.mv i{font-style:normal;font-size:11px;color:var(--dim2)}
 .lr.tot{border-top:1px dashed #33404e;margin-top:6px;padding-top:10px;font-size:16px}
 .lr.tot b{font-size:30px;color:var(--ok);letter-spacing:-.02em}
 .lr.tot.bad b{color:var(--ng);font-size:24px}
@@ -623,28 +624,28 @@ function plan(){
   const subs=(A.subs||[]).filter(s=>!s.done);
   const active=subs.filter(s=>s.on!==false);
 
-  let cur=S.here, curName=S.hereName||'いまの場所', sum=0;
+  let cur=S.here, curName=S.hereName||'いまの場所', sum=0, totalKm=0;
   const steps=[];
   for(const s of active){
-    let tv=0, fromName=curName, unknown=false;
+    let tv=0, km=null, fromName=curName, unknown=false;
     if(hasPlace(s)){
       if(s.travelMin!=null)tv=s.travelMin;
-      else{const L=legMin(cur,s,s.mode); if(L)tv=L.min; else unknown=true}
+      else{const L=legMin(cur,s,s.mode); if(L){tv=L.min;km=L.km;totalKm+=L.km} else unknown=true}
       if(s.lat!=null){cur=s;curName=s.title}
     }
     const work=fudged(s.min);
-    steps.push({s,tv,work,fromName,unknown});
+    steps.push({s,tv,work,km,fromName,unknown});
     sum+=tv+work;
   }
-  let toAnchor=0, anchorUnknown=false;
+  let toAnchor=0, anchorKm=null, anchorUnknown=false;
   if(hasPlace(A)){
     if(A.travelMin!=null)toAnchor=A.travelMin;
-    else{const L=legMin(cur,A,A.mode); if(L)toAnchor=L.min; else anchorUnknown=true}
+    else{const L=legMin(cur,A,A.mode); if(L){toAnchor=L.min;anchorKm=L.km;totalKm+=L.km} else anchorUnknown=true}
   }
   const buffer=S.buffer||0;
   const need=sum+toAnchor+buffer;
   const slack=untilAnchor-need;
-  return {now,A,up,untilAnchor,subs,active,steps,sum,toAnchor,anchorUnknown,
+  return {now,A,up,untilAnchor,subs,active,steps,sum,toAnchor,anchorKm,anchorUnknown,totalKm,
           fromNameToAnchor:curName,buffer,need,slack,startBy:plus(A.d,-need)};
 }
 
@@ -686,8 +687,10 @@ function renderNow(P){
     el.innerHTML=h;return;
   }
   const A=P.A, late=P.slack<0;
+  const hereKm=A.lat!=null?legMin(S.here,A,A.mode):null;
   h+='<div class="hero'+(late?' go':'')+'">'
-    +'<div class="lbl">'+esc(A.title)+'（'+hm(A.d)+(A.addr?' ・'+esc(shortAddr(A.addr)):'')+'）まで</div>'
+    +'<div class="lbl">'+esc(A.title)+'（'+hm(A.d)+(A.addr?' ・'+esc(shortAddr(A.addr)):'')+'）まで'
+    +(hereKm?' <b style="color:#6aa9ff">直線'+hereKm.km.toFixed(1)+'km</b>':'')+'</div>'
     +'<div class="big">あと '+dur(P.untilAnchor)+'</div>'
     +'<div class="sub">'+(late
       ? '全部やるには <b style="color:#ff6b6b">'+dur(-P.slack)+' 足りない</b>。どれか外すか、短くする。'
@@ -697,12 +700,14 @@ function renderNow(P){
 
   if(!P.steps.length&&!P.toAnchor)h+='<div class="lr m"><span>引くものがまだ無い</span><b>0分</b></div>';
   P.steps.forEach(st=>{
-    if(st.tv||st.unknown)h+='<div class="lr mv"><span>🚶 '+esc(st.fromName)+' → '+esc(st.s.title)+'</span><b>'
+    if(st.tv||st.unknown)h+='<div class="lr mv"><span>🚶 '+esc(st.fromName)+' → '+esc(st.s.title)
+      +(st.km!=null?' <i>'+st.km.toFixed(1)+'km</i>':'')+'</span><b>'
       +(st.unknown?'?':'−'+dur(st.tv))+'</b></div>';
     h+='<div class="lr m"><span>'+esc(st.s.title)+'</span><b>−'+dur(st.work)+'</b></div>';
   });
   if(P.toAnchor||P.anchorUnknown)
-    h+='<div class="lr mv"><span>🚶 '+esc(P.fromNameToAnchor)+' → '+esc(A.title)+'</span><b>'
+    h+='<div class="lr mv"><span>🚶 '+esc(P.fromNameToAnchor)+' → '+esc(A.title)
+      +(P.anchorKm!=null?' <i>'+P.anchorKm.toFixed(1)+'km</i>':'')+'</span><b>'
       +(P.anchorUnknown?'?':'−'+dur(P.toAnchor))+'</b></div>';
   if(P.buffer)h+='<div class="lr m"><span>出発前の余裕</span><b>−'+dur(P.buffer)+'</b></div>';
   h+='<div class="lr tot'+(late?' bad':'')+'"><span>'+(late?'足りない':'のこり')+'</span><b>'
@@ -723,14 +728,15 @@ function renderNow(P){
   let c=new Date(P.now);
   h+=tli(hm(c),'いま','');
   P.steps.forEach(st=>{
-    if(st.tv){c=plus(c,st.tv);h+=tli(hm(c),'<span class="mvx">'+esc(st.s.title)+' 着</span>（移動'+dur(st.tv)+'）','mv')}
+    if(st.tv){c=plus(c,st.tv);h+=tli(hm(c),'<span class="mvx">'+esc(st.s.title)+' 着</span>（'
+      +(st.km!=null?st.km.toFixed(1)+'km・':'')+'移動'+dur(st.tv)+'）','mv')}
     const e=plus(c,st.work);
     h+=tli(hm(c)+'–'+hm(e),esc(st.s.title),'');
     c=e;
   });
   if(P.slack>0){h+=tli(hm(c)+'–'+hm(plus(c,P.slack)),'空き '+dur(P.slack),'');c=plus(c,P.slack)}
   if(P.toAnchor){
-    h+=tli(hm(c),'🚶 '+esc(A.title)+'へ出発（'+dur(P.toAnchor)+'）','k');c=plus(c,P.toAnchor);
+    h+=tli(hm(c),'🚶 '+esc(A.title)+'へ出発（'+(P.anchorKm!=null?P.anchorKm.toFixed(1)+'km・':'')+dur(P.toAnchor)+'）','k');c=plus(c,P.toAnchor);
     h+=tli(hm(c),'着'+(P.buffer?'（余裕'+dur(P.buffer)+'）':''),'');
   }else if(P.buffer)h+=tli(hm(c),'余裕 '+dur(P.buffer),'');
   h+=tli(hm(A.d),'⚑ '+esc(A.title),'f');
@@ -744,6 +750,8 @@ function renderNow(P){
       +'<button class="btn sec" onclick="showTab(\'set\');window.scrollTo(0,0)">住所で入れる</button>'
       +'</div></div>';
 
+  if(P.totalKm>0.05)h+='<div class="tiny" style="padding:0 4px 6px">🚶 今日この段取りで動く距離：合計 <b style="color:#6aa9ff">'
+    +P.totalKm.toFixed(1)+'km</b>（直線。実際の道のりは +'+(S.detour||0)+'% で見ています）</div>';
   h+='<div class="tiny" style="padding:4px 4px 20px">※ やることの時間は入力に +'+(S.fudge||0)
     +'% した数字。移動は住所どうしの直線距離 +'+(S.detour||0)+'% を行きかたの速さで割った目安。</div>';
   el.innerHTML=h;
@@ -776,7 +784,9 @@ function renderAnc(P){
       return '<div class="srow'+(on?'':' off')+'">'
         +'<div class="ck'+(on?' on':'')+'" onclick="toggleSub(\''+a.id+'\',\''+s.id+'\')">'+(on?'✓':'')+'</div>'
         +'<div class="ttl">'+esc(s.title)
-        +(s.addr?'<small>📍 '+esc(shortAddr(s.addr))+(s.lat==null?'（未検索）':'')+'</small>':'<small>どこでもできる</small>')
+        +(s.addr?'<small>📍 '+esc(shortAddr(s.addr))+(s.lat==null?'（未検索）':(()=>{
+            const L=legMin(S.here,s,s.mode);return L?'・現在地から'+L.km.toFixed(1)+'km':''})())+'</small>'
+          :'<small>どこでもできる</small>')
         +'</div><div class="met">'+met+'</div>'
         +'<button class="dn" onclick="editSub(\''+a.id+'\',\''+s.id+'\')">✎</button>'
         +'<button class="del" onclick="delSub(\''+a.id+'\',\''+s.id+'\')">×</button></div>';
@@ -903,10 +913,11 @@ async function judge(){
 
   const out=document.getElementById('idOut');
   const work=fudged(stay);
-  let there=0, back=0, unknown=false;
+  let there=0, back=0, unknown=false, gKm=null;
   if(g){
     const L1=legMin(S.here,g,mode);
-    if(L1){there=L1.min; const L2=legMin(g,P.A&&P.A.lat!=null?P.A:S.here,mode); back=L2?L2.min:L1.min}
+    if(L1){there=L1.min; gKm=L1.km;
+      const L2=legMin(g,P.A&&P.A.lat!=null?P.A:S.here,mode); back=L2?L2.min:L1.min}
     else unknown=true;
   }else if(addr){unknown=true}
   const cost=there+work+back;
@@ -929,7 +940,8 @@ async function judge(){
       : '<b style="color:var(--tx)">'+dur(-after)+' 足りない。</b>')+'</div></div>';
   h+='<div class="card"><div class="ldg" style="border:none;margin:0;padding:0">'
     +'<div class="lr"><span>'+esc(P.A.title)+'までの「のこり」</span><b>'+dur(P.slack)+'</b></div>';
-  if(there)h+='<div class="lr mv"><span>🚶 行き</span><b>−'+dur(there)+'</b></div>';
+  if(there)h+='<div class="lr mv"><span>🚶 行き'+(gKm!=null?' <i>'+gKm.toFixed(1)+'km</i>':'')
+    +'</span><b>−'+dur(there)+'</b></div>';
   h+='<div class="lr m"><span>'+esc(title)+'</span><b>−'+dur(work)+'</b></div>';
   if(back)h+='<div class="lr mv"><span>🚶 そこから'+esc(P.A.title)+'の方へ</span><b>−'+dur(back)+'</b></div>';
   h+='<div class="lr tot'+(after<0?' bad':'')+'"><span>'+(after<0?'足りない':'のこり')+'</span><b>'
@@ -1152,7 +1164,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-08-20-6';
+const APP_VERSION='2026-08-20-7';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
