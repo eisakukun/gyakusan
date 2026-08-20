@@ -271,7 +271,7 @@ nav button.on{color:var(--acc)}
         </div>
         <div class="geo" id="hGeo"></div>
         <label>いま居る場所の呼び名（表示だけに使う）</label>
-        <input type="text" id="sHere" oninput="S.hereName=this.value;save();render()">
+        <input type="text" id="sHere" oninput="S.hereName=this.value;S.hereNameManual=!!this.value.trim();save();render()">
       </div>
     </div>
 
@@ -380,28 +380,54 @@ function legMin(from,to,mode){
 }
 const hasPlace=x=>!!((x.addr&&x.addr.trim())||x.travelMin!=null||x.lat!=null);
 
+let locating=null;   /* 取得中の表示文（null なら取得していない） */
+/* 緯度経度 → 地名（「渋谷区 道玄坂」くらいの粒度） */
+async function reverseGeo(lat,lng){
+  try{
+    const wait=Math.max(0,1100-(Date.now()-_lastGeo));
+    if(wait)await new Promise(r=>setTimeout(r,wait));
+    _lastGeo=Date.now();
+    const r=await fetch('https://nominatim.openstreetmap.org/reverse?format=json&accept-language=ja&zoom=16&lat='+lat+'&lon='+lng);
+    if(!r.ok)return null;
+    const j=await r.json(), a=(j&&j.address)||{};
+    const big=a.city||a.town||a.village||a.county||a.province||'';
+    const small=a.suburb||a.neighbourhood||a.quarter||a.city_district||a.hamlet||'';
+    const n=[big,small].filter(Boolean).join(' ');
+    return n||(j&&j.display_name)||null;
+  }catch(e){return null}
+}
 function locate(){
   if(!navigator.geolocation)return alert('この端末では現在地が取れません');
-  const el=document.getElementById('hereGeo'); el.textContent='取得中…'; el.className='';
+  locating='取得中…'; render();
   const ok=p=>{
     const acc=Math.round(p.coords.accuracy);
     S.here={lat:p.coords.latitude,lng:p.coords.longitude,acc,at:Date.now(),manual:false};
-    save();render();
+    locating=null; save(); render();
     toast(acc>500
-      ? '取れたけど誤差 ±'+acc+'m と大きい。外に出てもう一度押すと正確になるよ'
+      ? '取れたけど誤差 ±'+acc+'m と大きい。外に出てもう一度押すか、設定で住所を入れてね'
       : '現在地を取った（±'+acc+'m）。移動時間を計算し直したよ');
+    /* 地名を引いて「いま居る場所」に入れる（自分で名前を付けている人は上書きしない） */
+    reverseGeo(S.here.lat,S.here.lng).then(n=>{
+      if(!n||!S.here)return;
+      S.here.label=n;
+      if(!S.hereNameManual)S.hereName=n;
+      save(); render();
+    });
   };
   const fail=e=>{
-    render();
-    const msg=e.code===1 ? '位置情報が許可されていません。\n iPhone: 設定 → プライバシーとセキュリティ → 位置情報サービス → Safari（またはこのアプリ）を「このAppの使用中」に'
-      : e.code===2 ? '位置が分かりませんでした。地下や建物の奥だと取れないことがあります。窓際か外でもう一度。'
+    locating=null; render();
+    const msg=e.code===1 ? '位置情報が許可されていません。\niPhone: 設定 → プライバシーとセキュリティ → 位置情報サービス → Safari（またはこのアプリ）を「このAppの使用中」に'
+      : e.code===2 ? '位置が分かりませんでした。地下や建物の奥だと取れないことがあります。'
       : '時間内に取れませんでした。電波の良いところでもう一度押してみて。';
-    alert('現在地が取れませんでした\n\n'+msg);
+    alert('現在地が取れませんでした\n\n'+msg+'\n\nこのあと「住所で入れる」欄を開きます。駅名や住所を打てば、そこを現在地として逆算できます。');
+    showTab('set'); window.scrollTo(0,0);
+    const h=document.getElementById('hAddr');
+    h.scrollIntoView({block:'center'}); setTimeout(()=>h.focus(),300);
   };
   /* まず GPS で高精度に。駄目なら Wi-Fi/基地局の粗い方法に切り替えて必ず何か取る */
   navigator.geolocation.getCurrentPosition(ok,e=>{
     if(e.code===1)return fail(e);
-    el.textContent='取得中…（粗い方法で再挑戦）';
+    locating='取得中…（粗い方法で再挑戦）'; render();
     navigator.geolocation.getCurrentPosition(ok,fail,
       {enableHighAccuracy:false,timeout:15000,maximumAge:120000});
   },{enableHighAccuracy:true,timeout:12000,maximumAge:30000});
@@ -634,7 +660,8 @@ function render(){
   const geoTxt=!S.here ? 'タップで現在地を取る'
     : manual ? '✏️ 手入力ずみ'
     : (rough?'⚠️ ざっくり ±':'📍 取得ずみ ±')+S.here.acc+'m'+(mins>2?'（'+mins+'分前）':'');
-  if(hg.textContent.indexOf('取得中')<0){hg.className=(S.here&&!rough)?'':'no';hg.textContent=geoTxt}
+  if(locating){hg.className='';hg.textContent=locating}
+  else{hg.className=(S.here&&!rough)?'':'no';hg.textContent=geoTxt}
   const sg=document.getElementById('setGeo');
   sg.className=!S.here?'geo':(rough?'geo err':'geo ok');
   sg.textContent=!S.here
@@ -1046,7 +1073,7 @@ async function setHereByAddr(){
   try{
     const g=await geocode(q);
     S.here={lat:g.lat,lng:g.lng,acc:0,at:Date.now(),manual:true,label:g.label};
-    if(!S.hereName||S.hereName==='家')S.hereName=q;
+    if(!S.hereNameManual)S.hereName=q;
     save();render();
     out.className='geo ok';
     out.innerHTML='✓ ここにした：'+esc(g.label)+(g.exact?'':'<br><span style="color:#ffb454">※「'+esc(g.matched)+'」で特定</span>');
@@ -1125,7 +1152,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-08-20-5';
+const APP_VERSION='2026-08-20-6';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
