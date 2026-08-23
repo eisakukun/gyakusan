@@ -52,6 +52,10 @@ h2:first-child{margin-top:6px}
 .lr.m{color:var(--dim);font-size:13px}
 .lr.mv{color:var(--acc);font-size:13px}
 .lr.mv i{font-style:normal;font-size:11px;color:var(--dim2)}
+.lr.tr,.lr.m.tr,.lr.mv.tr{color:#c39bff}
+.trialbar{background:#241d33;border:1px solid #493b66;border-radius:16px;padding:13px;margin-bottom:10px;
+  font-size:13px;color:#c39bff}
+.trialbar b{color:#e8edf3}
 .lr.tot{border-top:1px dashed #33404e;margin-top:6px;padding-top:10px;font-size:16px}
 .lr.tot b{font-size:18px;color:var(--tx);letter-spacing:-.01em}
 
@@ -239,8 +243,14 @@ nav button.on{color:var(--acc)}
     <p class="tiny">「海行きたい」みたいなやつを、やる前に判定する。</p>
     <div class="card">
       <div class="f">
-        <label>なにしたい</label>
-        <input type="text" id="iT" placeholder="例：海に行く">
+        <label>なにしたい（時間や場所も一緒に書いてOK）</label>
+        <input type="text" id="iT" placeholder="例：15時から くるまやラーメン 1時間" oninput="onITitle()">
+        <div class="nlp" id="iNlp"></div>
+        <label>いつから</label>
+        <div class="addrbox">
+          <input type="time" id="iStart">
+          <button type="button" onclick="document.getElementById('iStart').value='';judge()">いま すぐ</button>
+        </div>
         <label>そこで過ごす時間</label>
         <div class="chips" id="iMinChips"></div>
         <input type="number" id="iMin" value="60" min="5" step="5">
@@ -324,7 +334,7 @@ const DEFMODE='train';
 
 /* ================= state ================= */
 const KEY='gyakusan.v2', OLDKEY='gyakusan.v1';
-const DEF={hereName:'家', here:null, buffer:10, fudge:20, detour:25, anchors:[]};
+const DEF={hereName:'家', here:null, buffer:10, fudge:20, detour:25, anchors:[], trial:null};
 let S=load();
 
 function load(){
@@ -513,7 +523,7 @@ function toast(m){
 /* ================= 「なに」から日時・場所・タイトルを読み取る ================= */
 const Z2H=s=>String(s).replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0))
   .replace(/[：]/g,':').replace(/[／]/g,'/').replace(/[＠]/g,'@').replace(/[　]/g,' ')
-  .replace(/[－ー‐‑–—]/g,'-');
+  .replace(/[－‐‑–—]/g,'-');   /* 長音符「ー」は変換しない。ラーメン等が壊れるため */
 const WD='日月火水木金土';
 
 /* kind: 'when'=予定（日時） / 'dur'=サブ目標（かかる時間） */
@@ -530,7 +540,7 @@ function parseNL(raw,kind){
   /* --- 場所（@ が一番確実、次に住所、次に施設名） --- */
   const NOTPLACE=/^(電車|バス|車|徒歩|歩き|自転車|急い|一人|ひとり|自分|みんな|あと|以内|オンライン|リモート|ネット|全部|あそこ|ここ|そこ|それ|これ|今日|明日|自宅|手|後|前|中)$/;
   eat(/@(\S+)/,m=>{R.addr=m[1]}) ||
-  eat(/((?:北海道|東京都|京都府|大阪府|[^\s]{2,3}県)[^\s、。]{2,})/,m=>{R.addr=m[1]}) ||
+  eat(/((?:北海道|東京都|京都府|大阪府|[^\s、。]{2,3}県)[^\s、。]*?)(?=で|にて|$|\s)/,m=>{R.addr=m[1]}) ||
   eat(/([^\s、。]{2,14}?(?:駅|空港|港|公園|病院|クリニック|医院|歯科|美術館|博物館|図書館|区役所|市役所|役所|ホール|劇場|映画館|スタジオ|センター|ビル|大学|高校|中学校|小学校|会館|球場|スタジアム|温泉|神社|銀行|郵便局|警察署|市民館|百貨店|デパート|モール|スーパー|ジム|ホテル|旅館))\s*(?:で|にて|に|へ)?/,m=>{R.addr=m[1]}) ||
   /* 上で当たらないとき「◯◯で」を場所の候補として拾う（固有名詞：伊勢丹で 等）。
      推測なので自動では検索せず、印だけ付ける */
@@ -539,13 +549,25 @@ function parseNL(raw,kind){
     R.addr=m[1];R.addrGuess=true;
   });
 
-  if(kind==='dur'){
-    /* --- かかる時間 --- */
+  if(kind==='dur'||kind==='idea'){
+    /* --- かかる時間（先に取る。「1時間」を時刻と誤読しないため） --- */
     eat(/(\d+)\s*時間\s*半/,m=>{R.dur=(+m[1])*60+30}) ||
     eat(/(\d+)\s*時間\s*(\d+)\s*分/,m=>{R.dur=(+m[1])*60+ +m[2]}) ||
     eat(/(\d+)\s*時間/,m=>{R.dur=(+m[1])*60}) ||
-    eat(/(\d+)\s*分/,m=>{R.dur=+m[1]});
-  }else{
+    eat(/(\d+)\s*分間?(?!後)/,m=>{R.dur=+m[1]});
+  }
+  if(kind==='idea'){
+    /* --- 「15時から」のような開始時刻 --- */
+    let ap=null;
+    eat(/(午前|午後|朝|昼|夕方|夜|深夜|晩)/,m=>{ap=m[1]});
+    eat(/(\d{1,2})\s*(?::|時)\s*(\d{1,2})?\s*分?\s*(半)?\s*(?:から|~|〜|-)?/,m=>{
+      let hh=+m[1], mm=m[3]?30:(m[2]!=null?+m[2]:0);
+      if(hh>23||mm>59)return false;
+      if(ap&&/午後|夕方|夜|晩/.test(ap)&&hh<12)hh+=12;
+      if(ap==='昼'&&hh<12)hh+=12;
+      R.time=pad(hh)+':'+pad(mm);
+    });
+  }else if(kind==='when'){
     /* --- ◯分後 / ◯時間後 --- */
     let rel=null;
     eat(/(\d+)\s*時間半後/,m=>{rel=(+m[1])*60+30}) ||
@@ -596,14 +618,17 @@ function parseNL(raw,kind){
       });
     }
   }
-  R.title=s.replace(/\s+/g,' ').replace(/^[\s、。にでへのから]+|[\s、。にでへのから]+$/g,'').trim();
+  R.title=s.replace(/\s+/g,' ').trim();
+  /* 住所を切り出したときだけ、その後ろに残る助詞を1つ落とす（「でんわする」を壊さないため） */
+  if(R.addr)R.title=R.title.replace(/^(?:にて|から|で|に|へ|の)\s*/,'');
+  R.title=R.title.replace(/[\s、。]+$/,'').trim();
   return R;
 }
 function nlpPreview(R,kind){
   const bits=[];
   if(R.date){const d=new Date(R.date+'T00:00');
     bits.push('📅 '+(d.getMonth()+1)+'/'+d.getDate()+'('+WD[d.getDay()]+')')}
-  if(R.time)bits.push('🕐 '+R.time);
+  if(R.time)bits.push('🕐 '+R.time+(kind==='idea'?' から':''));
   if(R.dur!=null)bits.push('⏱ '+dur(R.dur));
   if(R.addr)bits.push(R.addrGuess
     ? '<span style="color:#ffb454">📍 '+esc(R.addr)+'?（合ってたら「調べる」）</span>'
@@ -623,7 +648,9 @@ function plan(){
 
   const untilAnchor=(A.d-now)/60000;
   const subs=(A.subs||[]).filter(s=>!s.done);
-  const active=subs.filter(s=>s.on!==false);
+  let active=subs.filter(s=>s.on!==false);
+  /* 「ひらめき」を試しに入れた状態で計算する（確定ではない） */
+  if(S.trial)active=active.concat([Object.assign({id:'__trial',travelMin:null,on:true,done:false},S.trial,{__trial:true})]);
 
   let cur=S.here, curName=S.hereName||'いまの場所', sum=0, totalKm=0;
   const steps=[];
@@ -688,6 +715,11 @@ function renderNow(P){
     el.innerHTML=h;return;
   }
   const A=P.A, late=P.slack<0;
+  if(S.trial)h+='<div class="trialbar">'
+    +'<div>✦ ひらめき「<b>'+esc(S.trial.title)+'</b>」を入れて計算しています</div>'
+    +'<div class="two" style="margin-top:8px">'
+    +'<button class="btn sec" onclick="stashIdea()">サブ目標にする</button>'
+    +'<button class="btn sec" onclick="dropTrial()">外す</button></div></div>';
   const hereKm=A.lat!=null?legMin(S.here,A,A.mode):null;
   h+='<div class="hero'+(late?' go':'')+'">'
     +'<div class="lbl">'+esc(A.title)+'（'+hm(A.d)+(A.addr?' ・'+esc(shortAddr(A.addr)):'')+'）まで'
@@ -701,10 +733,11 @@ function renderNow(P){
 
   if(!P.steps.length&&!P.toAnchor)h+='<div class="lr m"><span>引くものがまだ無い</span><b>0分</b></div>';
   P.steps.forEach(st=>{
-    if(st.tv||st.unknown)h+='<div class="lr mv"><span>🚶 '+esc(st.fromName)+' → '+esc(st.s.title)
+    const tr=st.s.__trial?' tr':'';
+    if(st.tv||st.unknown)h+='<div class="lr mv'+tr+'"><span>🚶 '+esc(st.fromName)+' → '+esc(st.s.title)
       +(st.km!=null?' <i>'+st.km.toFixed(1)+'km</i>':'')+'</span><b>'
       +(st.unknown?'?':'−'+dur(st.tv))+'</b></div>';
-    h+='<div class="lr m"><span>'+esc(st.s.title)+'</span><b>−'+dur(st.work)+'</b></div>';
+    h+='<div class="lr m'+tr+'"><span>'+(st.s.__trial?'✦ ':'')+esc(st.s.title)+'</span><b>−'+dur(st.work)+'</b></div>';
   });
   if(P.toAnchor||P.anchorUnknown)
     h+='<div class="lr mv"><span>🚶 '+esc(P.fromNameToAnchor)+' → '+esc(A.title)
@@ -905,7 +938,8 @@ async function editAddr(aid){
 /* ================= ひらめき判定 ================= */
 async function judge(){
   const P=plan();
-  const title=document.getElementById('iT').value.trim()||'それ';
+  const rawT=document.getElementById('iT').value.trim();
+  const title=(parseNL(rawT,'idea').title)||rawT||'それ';
   const stay=+document.getElementById('iMin').value||60;
   const mode=document.getElementById('iMode').value;
   const addr=document.getElementById('iAddr').value.trim();
@@ -934,25 +968,49 @@ async function judge(){
       +'</div></div>';
     return;
   }
-  const after=P.slack-cost;
+  /* ひらめきを仮に入れて、「いま」タブごと計算し直す */
+  const sv=document.getElementById('iStart').value;
+  S.trial={title,min:stay,addr:g?g.label:addr,lat:g?g.lat:null,lng:g?g.lng:null,mode,start:sv||null};
+  save();
+  const P2=plan();                 /* ひらめき込み */
+  const after=P2.slack;
+  render();
+
+  /* 開始時刻が指定されていれば「何時に出れば間に合うか」を出す */
+  let startAt=null,pastStart=false,tooLate=false,departAt=null;
+  if(sv){
+    startAt=new Date(P.now); startAt.setHours(+sv.slice(0,2),+sv.slice(3,5),0,0);
+    if(startAt<P.now){pastStart=true;startAt=null}
+    else{departAt=plus(startAt,-there); if(departAt<P.now){tooLate=true;departAt=new Date(P.now)}}
+  }
+
   let h='<div class="vd '+(after>=0?'y':'n')+'"><div class="h">'+(after>=0?'間に合う':'間に合わない')+'</div>'
     +'<div class="muted">'+(after>=0
-      ? 'サブ目標を全部やっても <b style="color:var(--tx)">'+dur(after)+'</b> 余る。'
-      : '<b style="color:var(--tx)">'+dur(-after)+' 足りない。</b>')+'</div></div>';
+      ? 'これを入れても <b style="color:var(--tx)">'+dur(after)+'</b> 余る。'
+      : '<b style="color:var(--tx)">'+dur(-after)+' 足りない。</b>')
+    +(startAt&&!tooLate?'<br>'+(there
+        ? hm(startAt)+'に着くには <b style="color:var(--tx)">'+hm(departAt)+'</b> に出る。'
+        : '<b style="color:var(--tx)">'+hm(startAt)+'</b> から始める前提で計算。')
+      :'')
+    +(pastStart?'<br><span style="color:#ffb454">※ その時刻はもう過ぎているので「いますぐ」で計算しました</span>':'')
+    +(tooLate?'<br><span style="color:#ffb454">※ '+sv+'に着くにはもう出ていないと無理。いま出て '+hm(plus(P.now,there))+' 着になります</span>':'')
+    +'<br><span style="color:#c39bff">✦「いま」タブにも反映しました</span></div></div>';
   h+='<div class="card"><div class="ldg" style="border:none;margin:0;padding:0">'
-    +'<div class="lr"><span>'+esc(P.A.title)+'までの「のこり」</span><b>'+dur(P.slack)+'</b></div>';
+    +'<div class="lr"><span>これを入れる前の「のこり」</span><b>'+dur(P.slack)+'</b></div>';
   if(there)h+='<div class="lr mv"><span>🚶 行き'+(gKm!=null?' <i>'+gKm.toFixed(1)+'km</i>':'')
     +'</span><b>−'+dur(there)+'</b></div>';
   h+='<div class="lr m"><span>'+esc(title)+'</span><b>−'+dur(work)+'</b></div>';
   if(back)h+='<div class="lr mv"><span>🚶 そこから'+esc(P.A.title)+'の方へ</span><b>−'+dur(back)+'</b></div>';
-  h+='<div class="lr tot'+(after<0?' bad':'')+'"><span>'+(after<0?'足りない':'のこり')+'</span><b>'
+  h+='<div class="lr tot"><span>'+(after<0?'足りない':'のこり')+'</span><b>'
     +(after<0?'−'+dur(-after):dur(after))+'</b></div></div>';
   if(after>=0){
+    const d0=departAt||P.now;
     h+='<div style="height:12px"></div><div class="tl">'
-      +tli(hm(P.now),there?'いま出る':'いま始める','')
-      +(there?tli(hm(plus(P.now,there)),'<span class="mvx">'+esc(title)+' 着</span>','mv'):'')
-      +tli(hm(plus(P.now,there+work)),'切り上げる','k')
-      +tli(hm(plus(P.now,cost)),back?'移動おわり':'おわり','')
+      +tli(hm(d0),there?(departAt?'ここで出る':'いま出る'):(departAt?'ここで始める':'いま始める'),'k')
+      +(there?tli(hm(plus(d0,there)),'<span class="mvx">'+esc(title)+' 着</span>'
+          +(gKm!=null?'（'+gKm.toFixed(1)+'km）':''),'mv'):'')
+      +tli(hm(plus(d0,there+work)),'切り上げる','')
+      +(back?tli(hm(plus(d0,cost)),'移動おわり',''):'')
       +tli(hm(P.A.d),'⚑ '+esc(P.A.title),'f')+'</div>';
   }else{
     const cut=Math.max(0,stay+after);
@@ -966,19 +1024,6 @@ async function judge(){
     +'<button class="btn sec" onclick="stashIdea()">サブ目標にして置いとく</button></div>';
   out.innerHTML=h;
 }
-function stashIdea(){
-  const P=plan(); if(!P.A)return alert('先に譲れない目標を追加してね');
-  const title=document.getElementById('iT').value.trim()||'思いつき';
-  const g=GEOBUF.i, addr=document.getElementById('iAddr').value.trim();
-  (P.A.subs=P.A.subs||[]);
-  const a=S.anchors.find(x=>x.id===P.A.id);
-  (a.subs=a.subs||[]).push({id:uid(),title,min:+document.getElementById('iMin').value||60,
-    addr:g?g.label:addr,lat:g?g.lat:null,lng:g?g.lng:null,
-    mode:document.getElementById('iMode').value,travelMin:null,on:false,done:false});
-  save();render();
-  toast('「'+a.title+'」の下に、外した状態で置いた');
-}
-
 /* ===== 「なに」を打つと日時・場所が埋まる ===== */
 let aPrev={date:null,time:null,addr:null}, sPrev={dur:null,addr:null};
 let _geoT=null;
@@ -988,8 +1033,7 @@ function onATitle(){
   /* 前回の読み取りから変わったときだけ書き込む（手で直した値を消さないため） */
   if(R.date&&R.date!==aPrev.date)document.getElementById('aDate').value=R.date;
   if(R.time&&R.time!==aPrev.time)document.getElementById('aTime').value=R.time;
-  if(R.addr&&R.addr!==aPrev.addr){document.getElementById('aAddr').value=R.addr;
-    if(!R.addrGuess)debounceLookup('a'); else document.getElementById('aGeo').innerHTML='';}
+  if(R.addr&&R.addr!==aPrev.addr){document.getElementById('aAddr').value=R.addr;debounceLookup('a')}
   if(R.date||R.time)aClearChips();
   aPrev={date:R.date,time:R.time,addr:R.addr};
   document.getElementById('aNlp').innerHTML=nlpPreview(R,'when');
@@ -1000,13 +1044,25 @@ function onSTitle(){
     document.getElementById('sMin').value=R.dur;
     document.querySelectorAll('#sMinChips .chip').forEach(c=>c.classList.toggle('on',+c.dataset.v===R.dur));
   }
-  if(R.addr&&R.addr!==sPrev.addr){document.getElementById('sAddr').value=R.addr;
-    if(!R.addrGuess)debounceLookup('s'); else document.getElementById('sGeo').innerHTML='';}
+  if(R.addr&&R.addr!==sPrev.addr){document.getElementById('sAddr').value=R.addr;debounceLookup('s')}
   sPrev={dur:R.dur,addr:R.addr};
   document.getElementById('sNlp').innerHTML=nlpPreview(R,'dur');
 }
+let iPrev={dur:null,addr:null,time:null};
+function onITitle(){
+  const R=parseNL(document.getElementById('iT').value,'idea');
+  if(R.dur!=null&&R.dur!==iPrev.dur){
+    document.getElementById('iMin').value=R.dur;
+    document.querySelectorAll('#iMinChips .chip').forEach(c=>c.classList.toggle('on',+c.dataset.v===R.dur));
+  }
+  if(R.time&&R.time!==iPrev.time)document.getElementById('iStart').value=R.time;
+  if(R.addr&&R.addr!==iPrev.addr){document.getElementById('iAddr').value=R.addr;
+    if(!R.addrGuess)debounceLookup('i'); else document.getElementById('iGeo').innerHTML='';}
+  iPrev={dur:R.dur,addr:R.addr,time:R.time};
+  document.getElementById('iNlp').innerHTML=nlpPreview(R,'idea');
+}
 function clearNLP(){
-  aPrev={date:null,time:null,addr:null};sPrev={dur:null,addr:null};
+  aPrev={date:null,time:null,addr:null};sPrev={dur:null,addr:null};iPrev={dur:null,addr:null,time:null};
   document.getElementById('aNlp').innerHTML='';document.getElementById('sNlp').innerHTML='';
 }
 
@@ -1086,13 +1142,27 @@ async function setHereByAddr(){
   try{
     const g=await geocode(q);
     S.here={lat:g.lat,lng:g.lng,acc:0,at:Date.now(),manual:true,label:g.label};
-    if(!S.hereNameManual)S.hereName=q;
+    if(!S.hereName||S.hereName==='家')S.hereName=q;
     save();render();
     out.className='geo ok';
     out.innerHTML='✓ ここにした：'+esc(g.label)+(g.exact?'':'<br><span style="color:#ffb454">※「'+esc(g.matched)+'」で特定</span>');
     toast('いまいる場所を「'+q+'」にした');
   }catch(e){out.className='geo err';out.textContent='× '+(e.message||e)}
 }
+
+function stashIdea(){
+  const P=plan(); if(!P.A||!S.trial)return alert('先に「入るか見る」を押してね');
+  const a=S.anchors.find(x=>x.id===P.A.id); if(!a)return;
+  const t=S.trial;
+  (a.subs=a.subs||[]).push({id:uid(),title:t.title,min:t.min,addr:t.addr||'',
+    lat:t.lat,lng:t.lng,mode:t.mode,travelMin:null,on:true,done:false});
+  S.trial=null; save(); render();
+  document.getElementById('idOut').innerHTML='<div class="card muted">「'+esc(t.title)+'」を '+esc(a.title)+' のサブ目標にした。</div>';
+  toast('サブ目標にした');
+}
+function dropTrial(){S.trial=null;save();render();
+  const o=document.getElementById('idOut'); if(o)o.innerHTML='';
+  toast('ひらめきを外した');}
 
 /* ================= バックアップ ================= */
 function exportBackup(){
@@ -1165,7 +1235,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-08-20-9';
+const APP_VERSION='2026-08-20-11';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
