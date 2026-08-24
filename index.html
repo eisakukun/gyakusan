@@ -111,6 +111,7 @@ input[type=text],input[type=number],input[type=date],input[type=time],select{
 input:focus,select:focus{border-color:var(--acc)}
 .btn{background:var(--acc);color:#08131f;border:none;border-radius:12px;padding:13px;font-weight:700;width:100%;cursor:pointer}
 .btn.sec{background:var(--panel2);color:var(--tx);border:1px solid var(--line)}
+.btn.sec.danger{color:var(--ng);border-color:#4a2b2f}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{background:var(--panel2);border:1px solid var(--line);color:var(--dim);border-radius:99px;padding:7px 13px;font-size:13px;cursor:pointer}
 .chip.on{background:var(--acc);border-color:var(--acc);color:#08131f;font-weight:700}
@@ -784,6 +785,9 @@ function renderNow(P){
       +'<button class="btn sec" onclick="showTab(\'set\');window.scrollTo(0,0)">住所で入れる</button>'
       +'</div></div>';
 
+  h+='<div class="two" style="margin:6px 0 10px">'
+    +'<button class="btn sec" onclick="editAnchor(\''+A.id+'\')">✎ この予定を直す</button>'
+    +'<button class="btn sec danger" onclick="delAnchor(\''+A.id+'\')">× この予定を消す</button></div>';
   if(P.totalKm>0.05)h+='<div class="tiny" style="padding:0 4px 6px">🚶 今日この段取りで動く距離：合計 <b style="color:#6aa9ff">'
     +P.totalKm.toFixed(1)+'km</b>（直線。実際の道のりは +'+(S.detour||0)+'% で見ています）</div>';
   h+='<div class="tiny" style="padding:4px 4px 20px">※ やることの時間は入力に +'+(S.fudge||0)
@@ -907,10 +911,12 @@ function addSub(){
   render();toast('「'+a.title+'」の下に足した');
 }
 function delAnchor(id){
-  const a=S.anchors.find(x=>x.id===id);
-  if(a&&(a.subs||[]).length&&!confirm('「'+a.title+'」とサブ目標'+a.subs.length+'件を消す？'))return;
+  const a=S.anchors.find(x=>x.id===id); if(!a)return;
+  const n=(a.subs||[]).length;
+  if(!confirm('「'+a.title+'」を消す？'+(n?'\nサブ目標'+n+'件も一緒に消えます。':'')))return;
   if(editA&&editA.id===id)cancelEditAnchor();
   S.anchors=S.anchors.filter(x=>x.id!==id);save();render();
+  toast('「'+a.title+'」を消した');
 }
 function delSub(aid,sid){
   const a=S.anchors.find(x=>x.id===aid); if(!a)return;
@@ -1235,7 +1241,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-08-20-11';
+const APP_VERSION='2026-08-20-12';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
