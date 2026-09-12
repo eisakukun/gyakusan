@@ -52,6 +52,9 @@ h2:first-child{margin-top:6px}
 .lr.m{color:var(--dim);font-size:13px}
 .lr.mv{color:var(--acc);font-size:13px}
 .lr.mv i{font-style:normal;font-size:11px;color:var(--dim2)}
+.lr.mv.miss{color:var(--warn);cursor:pointer}
+.lr.mv.miss i{color:var(--warn);opacity:.8}
+.lr.mv.miss b{border:1px dashed #4a3a22;border-radius:8px;padding:2px 9px;font-size:12px;font-weight:600}
 .lr.tr,.lr.m.tr,.lr.mv.tr{color:#c39bff}
 .trialbar{background:#241d33;border:1px solid #493b66;border-radius:16px;padding:13px;margin-bottom:10px;
   font-size:13px;color:#c39bff}
@@ -115,6 +118,24 @@ input:focus,select:focus{border-color:var(--acc)}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{background:var(--panel2);border:1px solid var(--line);color:var(--dim);border-radius:99px;padding:7px 13px;font-size:13px;cursor:pointer}
 .chip.on{background:var(--acc);border-color:var(--acc);color:#08131f;font-weight:700}
+
+/* アラームの聞き取り（ショートカット呼び出し） */
+#alMask{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;display:none}
+#alMask.on{display:block}
+#alSheet{position:fixed;left:50%;transform:translateX(-50%);bottom:0;z-index:101;width:min(460px,100%);
+  background:var(--panel);border:1px solid var(--line);border-radius:18px 18px 0 0;padding:18px 16px;
+  padding-bottom:calc(18px + env(safe-area-inset-bottom));display:none;max-height:88vh;overflow-y:auto}
+#alSheet.on{display:block}
+#alSheet h3{margin:0 0 4px;font-size:16px}
+#alSheet .sub{color:var(--dim);font-size:12.5px;margin-bottom:14px}
+#alSheet .opt{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  background:var(--panel2);border:1px solid var(--line);color:var(--tx);border-radius:12px;
+  padding:13px 14px;font-size:14px;cursor:pointer;margin-bottom:8px}
+#alSheet .opt b{margin-left:auto;font-size:17px;font-variant-numeric:tabular-nums}
+#alSheet .opt.main{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
+#alSheet .opt.main b{color:var(--acc)}
+#alSheet .warn{background:#241d13;border:1px solid #4a3a22;border-radius:10px;
+  padding:10px 12px;font-size:12.5px;color:var(--warn);margin-bottom:10px;line-height:1.5}
 .two{display:flex;gap:8px}.two>*{flex:1}
 .addrbox{display:flex;gap:8px}
 .addrbox input{flex:1}
@@ -300,6 +321,24 @@ nav button.on{color:var(--acc)}
       </div>
     </div>
 
+    <h2>⏰ アラーム（iPhone）</h2>
+    <div class="card">
+      <div class="f">
+        <label>呼び出すショートカットの名前 — iPhoneで作った名前と<b>一字一句</b>同じにする</label>
+        <input type="text" id="sAlName" placeholder="逆算アラーム"
+          oninput="S.alarmShortcut=this.value.trim();save()">
+      </div>
+      <div style="height:10px"></div>
+      <div class="chips">
+        <button type="button" class="chip" id="sAlAsk"
+          onclick="S.alarmAsk=(S.alarmAsk===false);save();render()">予定を足したら聞く</button>
+        <button type="button" class="chip" id="sAlFull"
+          onclick="S.alarmPayload=(S.alarmPayload==='full'?'time':'full');save();render()">ラベルも送る</button>
+      </div>
+      <div style="height:10px"></div>
+      <div class="tiny"><b>かんたん版（おすすめ・2アクション）</b>：①ショートカットの入力を受け取る（テキスト）②アラームを作成（時刻＝ショートカットの入力）。送るのは <b>17:18</b> だけ。<br><b>「ラベルも送る」を入れた時</b>：送るのが <b>17:18|渋谷で打ち合わせ|2026-08-31</b> になるので、①のあとに「テキストを分割（区切り <b>|</b>）」と「リストから項目を取得」を足して、時刻とラベルに分ける。<br>どちらも設定ⓘの「実行前に尋ねる」はオフに。<br>※Webからは直接アラームをかけられないので、ショートカットに投げる形にしている。</div>
+    </div>
+
     <h2>バックアップ</h2>
     <div class="card">
       <div class="two">
@@ -320,6 +359,14 @@ nav button.on{color:var(--acc)}
   </section>
 </div>
 
+<div id="alMask" onclick="closeAlarm()"></div>
+<div id="alSheet">
+  <h3>⏰ アラーム鳴らす？</h3>
+  <div class="sub" id="alSub"></div>
+  <div id="alBody"></div>
+  <button class="btn sec" onclick="closeAlarm()">今はいい</button>
+</div>
+
 <nav>
   <button class="on" data-p="now"><i>◎</i>いま</button>
   <button data-p="anc"><i>⚑</i>予定</button>
@@ -335,7 +382,8 @@ const DEFMODE='train';
 
 /* ================= state ================= */
 const KEY='gyakusan.v2', OLDKEY='gyakusan.v1';
-const DEF={hereName:'家', here:null, buffer:10, fudge:20, detour:25, anchors:[], trial:null};
+const DEF={hereName:'家', here:null, buffer:10, fudge:20, detour:25, anchors:[], trial:null,
+  alarmShortcut:'逆算アラーム', alarmAsk:true, alarmPayload:'time'};
 let S=load();
 
 function load(){
@@ -678,6 +726,66 @@ function plan(){
           fromNameToAnchor:curName,buffer,need,slack,startBy:plus(A.d,-need)};
 }
 
+/* ================= アラーム（iOSショートカット呼び出し） =================
+   Webからは iPhone のアラームを直接かけられないので、ショートカットに投げる。
+   受け渡しは URL の文字列1本だけ。裏で通信はしない。
+     shortcuts://run-shortcut?name=逆算アラーム&input=text&text=14:12|渋谷で打ち合わせ|2026-09-02
+   ショートカット側は「|」で分割して 1=時刻 2=ラベル（3=日付は使っても使わなくてもいい）。 */
+let alarmFor=null;
+
+/* この予定の「出発の時刻」。移動時間が出せないうちは null */
+function anchorLeaveAt(a){
+  const d=new Date(a.at); if(isNaN(d)||!hasPlace(a))return null;
+  let tv=null;
+  if(a.travelMin!=null)tv=a.travelMin;
+  else{const L=legMin(S.here,a,a.mode); if(L)tv=L.min}
+  if(tv==null)return null;
+  return plus(d,-(tv+(S.buffer||0)));
+}
+function askAlarm(id){
+  const a=S.anchors.find(x=>x.id===id); if(!a)return;
+  const d=new Date(a.at); if(isNaN(d))return;
+  alarmFor=id;
+  const leave=anchorLeaveAt(a);
+  document.getElementById('alSub').innerHTML='「'+esc(a.title)+'」　'
+    +(d.getMonth()+1)+'/'+d.getDate()+'('+DOW[d.getDay()]+') '+hm(d)+' まで';
+  let h='';
+  /* iPhoneのアラームは日付を持てない＝次にその時刻が来た時に鳴る */
+  const far=(d-new Date())>24*60*60000;
+  if(far)h+='<div class="warn">⚠️ これは24時間より先の予定。iPhoneのアラームは<b>日付を持てない</b>ので、'
+    +'今かけると<b>明日のその時刻に鳴る</b>。当日になってから鳴らす方が確実。</div>';
+  const opt=(icon,label,when,main)=>'<button class="opt'+(main?' main':'')+'" '
+    +'onclick="fireAlarm(\''+when.toISOString()+'\')">'+icon+' '+label+'<b>'+hm(when)+'</b></button>';
+  if(leave&&leave>new Date())h+=opt('🚶','出発の時刻',leave,true);
+  else h+='<div class="warn">📍 現在地か住所がまだなので<b>出発の時刻が出せない</b>。'
+    +'移動時間が出たら、予定カードの ⏰ からいつでもかけ直せる。</div>';
+  h+=opt('⚑','約束の時刻',d,false);
+  h+=opt('⏰','30分前',plus(d,-30),false);
+  document.getElementById('alBody').innerHTML=h;
+  document.getElementById('alMask').classList.add('on');
+  document.getElementById('alSheet').classList.add('on');
+}
+function closeAlarm(){
+  alarmFor=null;
+  document.getElementById('alMask').classList.remove('on');
+  document.getElementById('alSheet').classList.remove('on');
+}
+function fireAlarm(iso){
+  const a=S.anchors.find(x=>x.id===alarmFor); if(!a)return closeAlarm();
+  const when=new Date(iso), d=new Date(a.at);
+  const title=String(a.title||'予定').replace(/\|/g,'／');   /* | は区切りに使うので潰す */
+  const ymd=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  const name=S.alarmShortcut||'逆算アラーム';
+  /* かんたん版は時刻だけ送る（ショートカットが2アクションで済む）。
+     くわしい版は 時刻|ラベル|日付 を送る（分割して使う） */
+  const payload=(S.alarmPayload==='full')?(hm(when)+'|'+title+'|'+ymd):hm(when);
+  const url='shortcuts://run-shortcut?name='+encodeURIComponent(name)
+    +'&input=text&text='+encodeURIComponent(payload);
+  closeAlarm();
+  toast('⏰ '+hm(when)+' でショートカット「'+name+'」を呼んだ');
+  location.href=url;
+}
+
 /* ================= 描画 ================= */
 function render(){
   const P=plan();
@@ -703,6 +811,9 @@ function render(){
         ? '⚠️ 誤差 ±'+S.here.acc+'m とかなり粗いです（地下や建物の奥だとこうなります）。窓際か外で取り直すか、下の欄に住所を入れてください。'
         : '✓ 取得ずみ（誤差 ±'+S.here.acc+'m）'+(mins>10?'／'+mins+'分前に取得。移動したなら取り直してね':'');
   syncField('sHere',S.hereName||''); syncField('sBuf',S.buffer); syncField('sFudge',S.fudge); syncField('sDet',S.detour);
+  syncField('sAlName',S.alarmShortcut||'');
+  const alb=document.getElementById('sAlAsk'); if(alb)alb.classList.toggle('on',S.alarmAsk!==false);
+  const alf=document.getElementById('sAlFull'); if(alf)alf.classList.toggle('on',S.alarmPayload==='full');
   renderNow(P); renderAnc(P); syncParent();
 }
 function syncField(id,v){const e=document.getElementById(id);if(e&&document.activeElement!==e)e.value=v}
@@ -721,29 +832,42 @@ function renderNow(P){
     +'<div class="two" style="margin-top:8px">'
     +'<button class="btn sec" onclick="stashIdea()">サブ目標にする</button>'
     +'<button class="btn sec" onclick="dropTrial()">外す</button></div></div>';
-  const hereKm=A.lat!=null?legMin(S.here,A,A.mode):null;
+  const goMode=MODES[A.mode||DEFMODE].n;
+  /* 見出しは「いま居る場所から直行なら何分」。帳簿の方は寄り道をつないだ実際の足し算 */
+  const goDirect=!hasPlace(A)?null
+    :(A.travelMin!=null?{min:A.travelMin,km:null}:legMin(S.here,A,A.mode));
+  const goTag=goDirect
+    ? ' <b style="color:#6aa9ff">🚶 ここから '+esc(goMode)+'で 約'+dur(goDirect.min)
+      +(goDirect.km!=null?'（'+goDirect.km.toFixed(1)+'km）':'')+'</b>'
+    : hasPlace(A) ? ' <b style="color:#ffb454">🚶 移動 ?分（現在地がまだ）</b>'
+    : ' <b style="color:#ffb454">🚶 移動時間まだ</b>';
   h+='<div class="hero'+(late?' go':'')+'">'
     +'<div class="lbl">'+esc(A.title)+'（'+hm(A.d)+(A.addr?' ・'+esc(shortAddr(A.addr)):'')+'）まで'
-    +(hereKm?' <b style="color:#6aa9ff">直線'+hereKm.km.toFixed(1)+'km</b>':'')+'</div>'
+    +goTag+'</div>'
     +'<div class="big'+(late?'':' ok')+'"><span class="pre">'+(late?'足りない':'のこり')+'</span>'
     +(late?dur(-P.slack):dur(P.slack))+'</div>'
     +'<div class="sub">約束まで あと '+dur(P.untilAnchor)+'。'+(late
       ? 'どれか外すか、短くする。'
-      : '全部やるなら <b style="color:#e8edf3">'+hm(P.startBy)+'</b> までに動き出せばいい。')+'</div>'
+      : '全部やるなら <b style="color:#e8edf3">'+hm(P.startBy)+'</b> までに'
+        +(P.toAnchor?'<b style="color:#e8edf3">出れば</b>いい（'+esc(goMode)+' '+dur(P.toAnchor)+'＋余裕'+dur(P.buffer)+'）。'
+                    :'動き出せばいい。'))+'</div>'
     +'<div class="ldg">';
 
-  if(!P.steps.length&&!P.toAnchor)h+='<div class="lr m"><span>引くものがまだ無い</span><b>0分</b></div>';
+  if(!P.steps.length&&!P.toAnchor)h+='<div class="lr m"><span>やることはまだ無い</span><b>0分</b></div>';
   P.steps.forEach(st=>{
     const tr=st.s.__trial?' tr':'';
     if(st.tv||st.unknown)h+='<div class="lr mv'+tr+'"><span>🚶 '+esc(st.fromName)+' → '+esc(st.s.title)
-      +(st.km!=null?' <i>'+st.km.toFixed(1)+'km</i>':'')+'</span><b>'
+      +' <i>'+(st.km!=null?st.km.toFixed(1)+'km・':'')+esc(MODES[st.s.mode||DEFMODE].n)+'</i></span><b>'
       +(st.unknown?'?':'−'+dur(st.tv))+'</b></div>';
     h+='<div class="lr m'+tr+'"><span>'+(st.s.__trial?'✦ ':'')+esc(st.s.title)+'</span><b>−'+dur(st.work)+'</b></div>';
   });
   if(P.toAnchor||P.anchorUnknown)
     h+='<div class="lr mv"><span>🚶 '+esc(P.fromNameToAnchor)+' → '+esc(A.title)
-      +(P.anchorKm!=null?' <i>'+P.anchorKm.toFixed(1)+'km</i>':'')+'</span><b>'
+      +' <i>'+(P.anchorKm!=null?P.anchorKm.toFixed(1)+'km・':'')+esc(goMode)+'</i></span><b>'
       +(P.anchorUnknown?'?':'−'+dur(P.toAnchor))+'</b></div>';
+  /* 場所が無いと移動が1分も引かれない。黙って0にせず、その場で入れられるようにする */
+  else h+='<div class="lr mv miss" onclick="editAddr(\''+A.id+'\')"><span>🚶 '+esc(P.fromNameToAnchor)
+      +' → '+esc(A.title)+' <i>ここまで何分かかる？</i></span><b>＋ 入れる</b></div>';
   if(P.buffer)h+='<div class="lr m"><span>出発前の余裕</span><b>−'+dur(P.buffer)+'</b></div>';
   h+='<div class="lr tot"><span>'+esc(A.title)+'（'+hm(A.d)+'）まで</span><b>あと '
     +dur(P.untilAnchor)+'</b></div></div>'
@@ -777,6 +901,16 @@ function renderNow(P){
   h+=tli(hm(A.d),'⚑ '+esc(A.title),'f');
   h+='</div></div>';
 
+  if(!hasPlace(A))
+    h+='<div class="card" style="border-color:#4a3a22;background:#241d13"><div class="muted">'
+      +'🚶 <b>「'+esc(A.title)+'」に場所が入っていない</b>ので、移動時間が1分も引かれていません。'
+      +'入れると「'+esc(goMode)+'で約◯分」が出て、出発の時刻もその分だけ早まります。'
+      +'<br><span class="tiny">住所でも、駅名でも、「30分」と分数を直接でもいい。</span></div>'
+      +'<div style="height:10px"></div><div class="two">'
+      +'<button class="btn sec" onclick="editAddr(\''+A.id+'\')">📍 場所か分数を入れる</button>'
+      +'<button class="btn sec" onclick="editAnchor(\''+A.id+'\')">✎ 行きかたを変える</button>'
+      +'</div></div>';
+
   if(!S.here&&(A.addr||P.subs.some(s=>s.addr)))
     h+='<div class="card" style="border-color:#4a3a22;background:#241d13"><div class="muted">'
       +'📍 住所は入ってるけど<b>現在地がまだ</b>。取れると移動時間が全部入ります。</div>'
@@ -807,6 +941,7 @@ function renderAnc(P){
     let h='<div class="acard'+(past?' past':'')+(isNext?' next':'')+'">'
       +'<div class="ahd"><div class="t">'+esc(a.title)+'</div>'
       +'<div class="w">'+(d.getDate()!==P.now.getDate()?(d.getMonth()+1)+'/'+d.getDate()+' ':'')+hm(d)+'</div>'
+      +'<button class="dn" onclick="askAlarm(\''+a.id+'\')" title="アラームを鳴らす">⏰</button>'
       +'<button class="dn" onclick="editAnchor(\''+a.id+'\')">✎</button>'
       +'<button class="del" onclick="delAnchor(\''+a.id+'\')">×</button></div>';
     h+=addrLine(a,'anchor');
@@ -871,13 +1006,15 @@ function addAnchor(){
     if(a){a.title=t;a.at=d+'T'+tm;a.addr=A.addr;a.lat=A.lat;a.lng=A.lng;a.travelMin=A.travelMin;a.mode=mode}
     cancelEditAnchor();render();toast('「'+t+'」を更新した');return;
   }
-  S.anchors.push({id:uid(),title:t,at:d+'T'+tm,
+  const newId=uid();
+  S.anchors.push({id:newId,title:t,at:d+'T'+tm,
     addr:A.addr,lat:A.lat,lng:A.lng,mode,travelMin:null,subs:[]});
   save();
   document.getElementById('aT').value='';
   document.getElementById('aAddr').value='';
   document.getElementById('aGeo').textContent='';GEOBUF.a=null;clearNLP();
   render();toast('「'+t+'」を追加した');
+  if(S.alarmAsk!==false)setTimeout(()=>askAlarm(newId),260);   /* 追加した直後に聞く */
 }
 function addSub(){
   const pid=document.getElementById('sParent').value;
@@ -1241,7 +1378,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-08-20-12';
+const APP_VERSION='2026-09-12-1';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
