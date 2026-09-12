@@ -222,7 +222,7 @@ nav button.on{color:var(--acc)}
         <label>住所（行く必要があるなら入れる）</label>
         <div class="chips plchips" id="aPlaceChips" style="display:none"></div>
         <div class="addrbox">
-          <input type="text" id="aAddr" placeholder="例：東京都渋谷区宇田川町15-1">
+          <input type="text" id="aAddr" placeholder="住所・駅名・店名（例：くるまやラーメン足立店）">
           <button type="button" onclick="lookup('a')">調べる</button>
         </div>
         <div class="geo" id="aGeo"></div>
@@ -327,7 +327,7 @@ nav button.on{color:var(--acc)}
         <input type="text" id="pName" placeholder="例：カスティル渋谷 / 実家 / ジム">
         <label>住所か駅名</label>
         <div class="addrbox">
-          <input type="text" id="pAddr" placeholder="例：東京都渋谷区東1丁目">
+          <input type="text" id="pAddr" placeholder="住所・駅名・店名・座標">
           <button type="button" onclick="lookup('p')">調べる</button>
         </div>
         <div class="geo" id="pGeo"></div>
@@ -380,8 +380,9 @@ nav button.on{color:var(--acc)}
       <input type="file" id="bkFile" accept="application/json,.json" style="display:none" onchange="importBackup(this)">
       <div style="height:10px"></div>
       <p class="tiny">予定・サブ目標はこの端末の中だけに保存されます。ホーム画面から削除すると消えるので、ときどき書き出してください。<br><br>
-      現在地の座標はどこにも送信しません。<b>住所を「調べる」を押したときだけ</b>、その住所の文字だけを
-      OpenStreetMap（Nominatim）に送って緯度経度に変換します。位置情報そのものは送りません。</p>
+      現在地の座標はどこにも送信しません。<b>住所を「調べる」を押したときだけ</b>、打った文字だけを
+      <b>国土地理院</b>（住所→番地まで）と <b>OpenStreetMap</b>（駅名・店名）に送って緯度経度に変えます。
+      位置情報そのものは送りません。座標を直接貼ったときは、どこにも送らずそのまま使います。</p>
     </div>
 
     <h2>やり直す</h2>
@@ -531,17 +532,45 @@ function locate(){
 
 /* 住所 → 緯度経度（OpenStreetMap Nominatim。住所の文字だけを送る） */
 let _lastGeo=0;
-async function geoOnce(q,jpOnly){
-  const wait=Math.max(0,1100-(Date.now()-_lastGeo));
+async function geoMany(q,jpOnly,n){
+  const wait=Math.max(0,1100-(Date.now()-_lastGeo));   /* Nominatimは1秒に1回まで */
   if(wait)await new Promise(r=>setTimeout(r,wait));
   _lastGeo=Date.now();
-  const url='https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ja'
-    +(jpOnly?'&countrycodes=jp':'')+'&q='+encodeURIComponent(q);
+  /* 現在地のまわりを優先して探す（縛りはしない。遠くにしか無ければ遠くも出す） */
+  const vb=S.here?'&viewbox='+(S.here.lng-0.5)+','+(S.here.lat+0.4)+','+(S.here.lng+0.5)+','+(S.here.lat-0.4):'';
+  const url='https://nominatim.openstreetmap.org/search?format=json&limit='+(n||1)+'&accept-language=ja'
+    +(jpOnly?'&countrycodes=jp':'')+vb+'&q='+encodeURIComponent(q);
   const r=await fetch(url);
   if(!r.ok)throw new Error('住所の検索に失敗した（'+r.status+'）');
   const j=await r.json();
-  if(!j.length)return null;
-  return {lat:+j[0].lat,lng:+j[0].lon,label:j[0].display_name};
+  return j.map(x=>({lat:+x.lat,lng:+x.lon,label:x.display_name}));
+}
+async function geoOnce(q,jpOnly){const a=await geoMany(q,jpOnly,1);return a[0]||null}
+
+/* ===== 国土地理院の住所検索 =====
+   OpenStreetMap は日本の番地をほとんど持っていない（丁目の真ん中に落ちる）。
+   国土地理院のこの窓口は番地まで持っていて、鍵も料金も要らない。
+   送るのは住所の文字だけで、現在地は送らない。 */
+async function geoGSI(q){
+  const r=await fetch('https://msearch.gsi.go.jp/address-search/AddressSearch?q='+encodeURIComponent(q));
+  if(!r.ok)return null;
+  const j=await r.json();
+  if(!Array.isArray(j)||!j.length)return null;
+  const c=j[0].geometry&&j[0].geometry.coordinates;
+  if(!c||!isFinite(+c[0])||!isFinite(+c[1]))return null;
+  return {lat:+c[1],lng:+c[0],label:(j[0].properties&&j[0].properties.title)||q};
+}
+/* 「東京都渋谷区東1丁目22-6」のように、市区町村＋数字があれば住所として扱う */
+const looksAddr=q=>/[都道府県市区町村]/.test(q)&&/[0-9０-９]|丁目|番地/.test(q);
+const cityOf=q=>{const m=String(q).match(/^.{0,10}?[市区町村]/);return m?m[0]:null};
+/* 「◯◯店」は地図に載っていないことが多い。後ろから削りながら探す */
+function nameVariants(q){
+  const out=[q];
+  if(/(支店|営業所|店)$/.test(q)){
+    const base=q.replace(/(支店|営業所|店)$/,'');
+    for(let k=0;k<=3;k++){const v=base.slice(0,base.length-k); if(v.length>=3&&out.indexOf(v)<0)out.push(v)}
+  }
+  return out;
 }
 /* Googleマップからコピペした住所をそのまま通せるようにする。
    「日本、〒150-0011 東京都渋谷区東１丁目２２−６」は地図データにそのままでは無いので、
@@ -587,18 +616,46 @@ async function geocode(q){
   if(c)return {lat:c.lat,lng:c.lng,label:c.lat.toFixed(5)+', '+c.lng.toFixed(5),
                matched:q,exact:true,byCoords:true};
   const N=normAddr(q);
+
+  /* ① 日本の住所らしければ国土地理院。ここだけが番地を持っている */
+  if(looksAddr(N.q)){
+    try{
+      const g=await geoGSI(N.q), city=cityOf(N.q);
+      if(g&&(!city||g.label.indexOf(city)>=0))return {...g, matched:N.q, exact:true, byGsi:true};
+    }catch(e){}
+  }
+
+  /* ② 店舗名・施設名は OSM。名前を削りながら集めて、近い順に選ばせる */
+  if(!looksAddr(N.q)){
+    const found=[];
+    for(const v of nameVariants(N.q)){
+      let list=[];
+      try{list=await geoMany(v,true,5)}catch(e){}
+      for(const x of list)
+        if(!found.some(y=>Math.abs(y.lat-x.lat)<1e-5&&Math.abs(y.lng-x.lng)<1e-5))found.push({...x,matched:v});
+      /* 近いものが1つでも出たら、そこで打ち切る（毎回5回も叩かない） */
+      if(S.here&&found.some(x=>kmBetween(S.here,x)<30))break;
+      if(found.length>=8)break;
+    }
+    if(found.length){
+      if(S.here)found.sort((a,b)=>kmBetween(S.here,a)-kmBetween(S.here,b));
+      const best=found[0];
+      return {...best, exact:best.matched===N.q, alts:found.slice(0,5)};
+    }
+  }
+
+  /* ③ 住所を後ろから削りながら（OSMは丁目止まり） */
   const vs=addrVariants(N.q);
-  /* まず日本国内だけで探す（「新宿駅」が海外の地名に化けるのを防ぐ）。
-     国内で1つも無ければ、海外の可能性として世界から探し直す */
   for(const v of vs){
     const g=await geoOnce(v,true);
     if(g)return {...g, matched:v, exact:v===N.q};
   }
-  /* 町名でも当たらないとき、郵便番号は丁目くらいまで当ててくれる */
+  /* ④ 町名でも当たらないとき、郵便番号は丁目くらいまで当ててくれる */
   if(N.zip){
     const g=await geoOnce(N.zip,true);
     if(g)return {...g, matched:N.zip, exact:false, byZip:true};
   }
+  /* ⑤ 海外の可能性として世界から探し直す */
   for(const v of vs){
     const g=await geoOnce(v,false);
     if(g)return {...g, matched:v, exact:v===N.q, abroad:true};
@@ -709,20 +766,35 @@ function showGeo(k){
   out.className='geo ok';
   const head=g.saved
     ? '★ よく行く場所「<b>'+esc(g.saved)+'</b>」'+(g.addr?'<br><span style="color:#8d9aa8">'+esc(shortAddr(g.addr))+'</span>':'')
-    : '✓ '+esc(g.label)
+    : (g.byGsi?'✓ <b>'+esc(g.label)+'</b><br><span style="color:#8d9aa8">📮 国土地理院の住所データ＝番地まで一致</span>'
+       :'✓ '+esc(g.label))
       +(g.exact?''
         :g.byZip?'<br><span style="color:#ffb454">※ 番地が地図に無かったので<b>郵便番号 '+esc(g.matched)+'</b>の場所で計算します（丁目くらいの精度）</span>'
-        :'<br><span style="color:#ffb454">※ 番地までは特定できず「'+esc(g.matched)+'」で計算します</span>')
+        :'<br><span style="color:#ffb454">※「'+esc(g.matched)+'」で当てた結果です</span>')
       +(g.byCoords?'<br><span style="color:#8d9aa8">📌 座標で指定＝ピンポイント</span>'
         :g.exact?''
-        :'<br><span style="color:#8d9aa8">ぴったりにしたいときは、その場所に居るうちに📍で登録するか、Googleマップの座標（例 35.6553, 139.7084）をこの欄に貼る</span>');
+        :'<br><span style="color:#8d9aa8">違うならすぐ下の候補から選ぶか、その場所に居るうちに📍で登録、またはGoogleマップの座標（例 35.6553, 139.7084）をこの欄に貼る</span>');
+  /* 同じ名前の店が何軒もある。近い順に出して選ばせる */
+  const alts=(g.alts||[]).filter(x=>!(Math.abs(x.lat-g.lat)<1e-5&&Math.abs(x.lng-g.lng)<1e-5));
+  g._alts=alts;
+  const altHtml=alts.length
+    ? '<br><span style="color:#8d9aa8">ほかの候補（近い順）：</span><br>'
+      +alts.map((x,i)=>'<button type="button" class="chip pl" style="margin:5px 5px 0 0" onclick="pickAlt(\''+k+'\','+i+')">'
+        +esc(shortAddr(x.label))+(S.here?' <b>'+kmBetween(S.here,x).toFixed(1)+'km</b>':'')+'</button>').join('')
+    : '';
   const leg=g.travelMin!=null
     ? '<br><span style="color:#8d9aa8">片道 '+g.travelMin+'分（手入力）</span>'
     : describeLeg(g,document.getElementById(k+'Mode').value);
   const btn=(k!=='p'&&!g.saved&&g.lat!=null)
     ? '<br><button type="button" class="chip pl" style="margin-top:8px" onclick="saveFromForm(\''+k+'\')">☆ よく行く場所に保存</button>'
     : '';
-  out.innerHTML=head+leg+btn;
+  out.innerHTML=head+leg+altHtml+btn;
+}
+/* 候補を選び直す。選ばなかったほうは候補として持ったままにする */
+function pickAlt(k,i){
+  const g=GEOBUF[k]; if(!g||!g._alts||!g._alts[i])return;
+  GEOBUF[k]=Object.assign({},g._alts[i],{exact:false,alts:g.alts});
+  showGeo(k);
 }
 function saveFromForm(k){
   const g=GEOBUF[k]; if(!g||g.lat==null)return;
@@ -1590,7 +1662,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-13-1';
+const APP_VERSION='2026-09-13-2';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
