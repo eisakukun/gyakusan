@@ -118,6 +118,9 @@ input:focus,select:focus{border-color:var(--acc)}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{background:var(--panel2);border:1px solid var(--line);color:var(--dim);border-radius:99px;padding:7px 13px;font-size:13px;cursor:pointer}
 .chip.on{background:var(--acc);border-color:var(--acc);color:#08131f;font-weight:700}
+.chip.pl{border-color:#3a4a5c;color:#cfe0f3}
+.chip.pl:active{background:var(--acc);color:#08131f}
+.plchips{margin:0 0 8px}
 
 /* アラームの聞き取り（ショートカット呼び出し） */
 #alMask{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;display:none}
@@ -217,6 +220,7 @@ nav button.on{color:var(--acc)}
           <input type="time" id="aTime" onchange="aClearChips()">
         </div>
         <label>住所（行く必要があるなら入れる）</label>
+        <div class="chips plchips" id="aPlaceChips" style="display:none"></div>
         <div class="addrbox">
           <input type="text" id="aAddr" placeholder="例：東京都渋谷区宇田川町15-1">
           <button type="button" onclick="lookup('a')">調べる</button>
@@ -244,6 +248,7 @@ nav button.on{color:var(--acc)}
         <div class="chips" id="sMinChips"></div>
         <input type="number" id="sMin" value="30" min="5" step="5">
         <label>住所（行く必要があるなら入れる。無ければ空でOK）</label>
+        <div class="chips plchips" id="sPlaceChips" style="display:none"></div>
         <div class="addrbox">
           <input type="text" id="sAddr" placeholder="住所。どこでもできるなら空のまま">
           <button type="button" onclick="lookup('s')">調べる</button>
@@ -277,6 +282,7 @@ nav button.on{color:var(--acc)}
         <div class="chips" id="iMinChips"></div>
         <input type="number" id="iMin" value="60" min="5" step="5">
         <label>住所（どこでもできるなら空のまま）</label>
+        <div class="chips plchips" id="iPlaceChips" style="display:none"></div>
         <div class="addrbox">
           <input type="text" id="iAddr" placeholder="例：福岡県福岡市東区大字勝馬">
           <button type="button" onclick="lookup('i')">調べる</button>
@@ -307,6 +313,29 @@ nav button.on{color:var(--acc)}
         <label>いま居る場所の呼び名（表示だけに使う）</label>
         <input type="text" id="sHere" oninput="S.hereName=this.value;S.hereNameManual=!!this.value.trim();save();render()">
       </div>
+    </div>
+
+    <h2>★ よく行く場所</h2>
+    <div class="card">
+      <p class="tiny">名前をつけて覚えておくと、予定やサブ目標の住所欄で<b>ワンタップ</b>で呼び出せます。
+      住所欄に名前を打って「調べる」でも出ます。</p>
+      <div class="f">
+        <label>名前（自分がわかる呼び方でいい）</label>
+        <input type="text" id="pName" placeholder="例：カスティル渋谷 / 実家 / ジム">
+        <label>住所か駅名</label>
+        <div class="addrbox">
+          <input type="text" id="pAddr" placeholder="例：東京都渋谷区東1丁目">
+          <button type="button" onclick="lookup('p')">調べる</button>
+        </div>
+        <div class="geo" id="pGeo"></div>
+        <label>行きかた</label>
+        <select id="pMode"></select>
+        <button class="btn" onclick="addPlace()">＋ 保存する</button>
+      </div>
+      <div style="height:10px"></div>
+      <button class="btn sec" onclick="savePlaceFromHere()">📍 いま居る場所を名前をつけて保存</button>
+      <div style="height:6px"></div>
+      <div id="plList"></div>
     </div>
 
     <h2>逆算のクセ</h2>
@@ -382,7 +411,7 @@ const DEFMODE='train';
 
 /* ================= state ================= */
 const KEY='gyakusan.v2', OLDKEY='gyakusan.v1';
-const DEF={hereName:'家', here:null, buffer:10, fudge:20, detour:25, anchors:[], trial:null,
+const DEF={hereName:'家', here:null, buffer:10, fudge:20, detour:25, anchors:[], trial:null, places:[],
   alarmShortcut:'逆算アラーム', alarmAsk:true, alarmPayload:'time'};
 let S=load();
 
@@ -399,6 +428,9 @@ function load(){
 function migrate(v1){
   const s=Object.assign({},DEF,{hereName:v1.hereName,here:v1.here,buffer:v1.buffer,fudge:v1.fudge});
   const pm={}; (v1.places||[]).forEach(p=>pm[p.id]=p);
+  /* v1 にも「場所」はあった。名前つきのまま v2 の「よく行く場所」に持ってくる */
+  s.places=(v1.places||[]).map(p=>({id:p.id,name:p.name,addr:p.name,lat:p.lat,lng:p.lng,
+    mode:p.mode||DEFMODE,travelMin:p.min!=null?p.min:null}));
   s.anchors=(v1.anchors||[]).map(a=>{
     const p=pm[a.placeId];
     return {id:a.id,title:a.title,at:a.at,addr:p?p.name:'',lat:p?p.lat:null,lng:p?p.lng:null,
@@ -553,22 +585,134 @@ async function geocode(q){
   }
   throw new Error('見つからなかった。市区町村＋町名だけにするか、施設名（例：井の頭公園）で試してみて');
 }
-/* 3つのフォーム（a=目標 / s=サブ / i=ひらめき）共通の住所検索 */
-const GEOBUF={a:null,s:null,i:null};
+/* ================= よく行く場所 =================
+   毎回おなじ住所を貼り直さなくていいように、名前をつけて覚えておく。
+   住所欄に名前を打っても、チップを押しても、同じものが入る。 */
+const placeList=()=>(S.places||(S.places=[]));
+function findPlace(q){
+  const t=String(q||'').trim().toLowerCase(); if(!t)return null;
+  const ps=placeList();
+  /* 部分一致まで許すと、保存名「渋谷」が「東京都渋谷区東1丁目」を横取りしてしまう。
+     完全一致と前方一致だけにする（「カスティル」→「カスティル渋谷」は拾える） */
+  return ps.find(p=>p.name.toLowerCase()===t)
+      || ps.find(p=>p.name.toLowerCase().startsWith(t)) || null;
+}
+/* 同じ名前で保存し直したら上書きする（増やさない） */
+function savePlace(name,g,mode){
+  const nm=String(name||'').trim(); if(!nm)return null;
+  const ps=placeList();
+  const ex=ps.find(p=>p.name.toLowerCase()===nm.toLowerCase());
+  const rec={id:ex?ex.id:uid(),name:nm,addr:g.addr||g.label||'',lat:g.lat,lng:g.lng,
+             mode:mode||DEFMODE,travelMin:g.travelMin!=null?g.travelMin:null};
+  if(ex)Object.assign(ex,rec); else ps.push(rec);
+  save();render(); return rec;
+}
+function delPlace(id){
+  const p=placeList().find(x=>x.id===id); if(!p)return;
+  if(!confirm('よく行く場所「'+p.name+'」を消す？\n（すでに入っている予定はそのまま残ります）'))return;
+  S.places=placeList().filter(x=>x.id!==id); save(); render();
+}
+function renamePlace(id){
+  const p=placeList().find(x=>x.id===id); if(!p)return;
+  const n=prompt('名前を変える',p.name); if(n===null)return;
+  const t=n.trim(); if(!t)return;
+  p.name=t; save(); render();
+}
+/* 保存ずみの場所を、フォームの住所欄に流し込む形にする */
+const placeBuf=p=>({label:p.name,addr:p.addr,lat:p.lat,lng:p.lng,
+  travelMin:p.travelMin!=null?p.travelMin:null,matched:p.name,exact:true,saved:p.name});
+function usePlace(k,id){
+  const p=placeList().find(x=>x.id===id); if(!p)return;
+  document.getElementById(k+'Addr').value=p.name;
+  GEOBUF[k]=placeBuf(p);
+  const ms=document.getElementById(k+'Mode'); if(ms&&p.mode)ms.value=p.mode;
+  showGeo(k);
+}
+function renderPlaceChips(){
+  const ps=placeList();
+  ['a','s','i'].forEach(k=>{
+    const el=document.getElementById(k+'PlaceChips'); if(!el)return;
+    el.style.display=ps.length?'flex':'none';
+    el.innerHTML=ps.map(p=>'<button type="button" class="chip pl" onclick="usePlace(\''+k+'\',\''+p.id+'\')">★ '
+      +esc(p.name)+'</button>').join('');
+  });
+}
+function renderPlaces(){
+  const el=document.getElementById('plList'); if(!el)return;
+  const ps=placeList();
+  if(!ps.length){el.innerHTML='<div class="empty">まだ無い。<br>よく行く場所を入れておくと、毎回住所を貼らなくてよくなる。</div>';return}
+  el.innerHTML=ps.map(p=>{
+    const L=p.travelMin!=null?{min:p.travelMin}:legMin(S.here,p,p.mode);
+    return '<div class="srow"><div class="ttl">★ '+esc(p.name)
+      +'<small>'+(p.addr?esc(shortAddr(p.addr)):'（座標だけ）')+' ／ '+esc(MODES[p.mode||DEFMODE].n)+'</small></div>'
+      +'<div class="met">'+(L?'約'+L.min+'分':'現在地待ち')+'</div>'
+      +'<button class="dn" onclick="renamePlace(\''+p.id+'\')">✎</button>'
+      +'<button class="del" onclick="delPlace(\''+p.id+'\')">×</button></div>';
+  }).join('');
+}
+async function addPlace(){
+  const nm=document.getElementById('pName').value.trim();
+  if(!nm)return alert('名前を入れてください');
+  const typed=document.getElementById('pAddr').value.trim();
+  if(typed&&!GEOBUF.p)await lookup('p');
+  const g=GEOBUF.p;
+  if(!g||g.lat==null)return alert('場所がまだ特定できていません。「調べる」を押して ✓ が出てから保存してください（駅名でもOK）');
+  savePlace(nm,g,document.getElementById('pMode').value);
+  document.getElementById('pName').value=''; document.getElementById('pAddr').value='';
+  GEOBUF.p=null; showGeo('p'); toast('★ 「'+nm+'」を保存した');
+}
+function savePlaceFromHere(){
+  if(!S.here)return alert('先に現在地を取ってください');
+  const n=prompt('いま居る場所に名前をつけて保存する\n例：家 / 職場 / ジム',S.here.label||'');
+  if(n===null)return; const t=n.trim(); if(!t)return;
+  savePlace(t,{addr:S.here.label||'（現在地から）',lat:S.here.lat,lng:S.here.lng},DEFMODE);
+  toast('★ 「'+t+'」を保存した');
+}
+
+/* 3つのフォーム（a=目標 / s=サブ / i=ひらめき / p=よく行く場所）共通の住所検索 */
+const GEOBUF={a:null,s:null,i:null,p:null};
+/* 調べた結果の見せ方。チップ・行きかたの変更・検索のどれからでもここを通す */
+function showGeo(k){
+  const out=document.getElementById(k+'Geo'); if(!out)return;
+  const g=GEOBUF[k];
+  if(!g){out.className='geo';out.innerHTML='';return}
+  out.className='geo ok';
+  const head=g.saved
+    ? '★ よく行く場所「<b>'+esc(g.saved)+'</b>」'+(g.addr?'<br><span style="color:#8d9aa8">'+esc(shortAddr(g.addr))+'</span>':'')
+    : '✓ '+esc(g.label)
+      +(g.exact?''
+        :g.byZip?'<br><span style="color:#ffb454">※ 番地が地図に無かったので<b>郵便番号 '+esc(g.matched)+'</b>の場所で計算します（丁目くらいの精度）</span>'
+        :'<br><span style="color:#ffb454">※ 番地までは特定できず「'+esc(g.matched)+'」で計算します</span>');
+  const leg=g.travelMin!=null
+    ? '<br><span style="color:#8d9aa8">片道 '+g.travelMin+'分（手入力）</span>'
+    : describeLeg(g,document.getElementById(k+'Mode').value);
+  const btn=(k!=='p'&&!g.saved&&g.lat!=null)
+    ? '<br><button type="button" class="chip pl" style="margin-top:8px" onclick="saveFromForm(\''+k+'\')">☆ よく行く場所に保存</button>'
+    : '';
+  out.innerHTML=head+leg+btn;
+}
+function saveFromForm(k){
+  const g=GEOBUF[k]; if(!g||g.lat==null)return;
+  const t0=(document.getElementById(k+'T')||{}).value||'';
+  const def=t0.trim()||String(g.label||'').split(',')[0].trim();
+  const n=prompt('この場所に名前をつけて保存する\n次からは名前を打つか、チップを押すだけで呼び出せます',def);
+  if(n===null)return; const t=n.trim(); if(!t)return;
+  const rec=savePlace(t,g,document.getElementById(k+'Mode').value);
+  GEOBUF[k]=placeBuf(rec);
+  document.getElementById(k+'Addr').value=rec.name;
+  showGeo(k); toast('★ 「'+rec.name+'」を保存した');
+}
 async function lookup(k){
   const inp=document.getElementById(k+'Addr'), out=document.getElementById(k+'Geo');
   const q=inp.value.trim();
-  if(!q){GEOBUF[k]=null;out.className='geo';out.textContent='';return}
+  if(!q){GEOBUF[k]=null;showGeo(k);return}
+  /* 保存ずみの名前ならネットに出ない */
+  const hit=findPlace(q);
+  if(hit&&!(k==='p')){usePlace(k,hit.id);return}
   out.className='geo wait';out.textContent='調べてる…';
   try{
-    const g=await geocode(q);
-    GEOBUF[k]=g;
-    out.className='geo ok';
-    out.innerHTML='✓ '+esc(g.label)
-      +(g.exact?''
-        :g.byZip?'<br><span style="color:#ffb454">※ 番地が地図に無かったので<b>郵便番号 '+esc(g.matched)+'</b>の場所で計算します（丁目くらいの精度）</span>'
-        :'<br><span style="color:#ffb454">※ 番地までは特定できず「'+esc(g.matched)+'」で計算します</span>')
-      +describeLeg(g,document.getElementById(k+'Mode').value);
+    GEOBUF[k]=await geocode(q);
+    showGeo(k);
   }catch(e){
     GEOBUF[k]=null;out.className='geo err';
     out.textContent='× '+(e.message||e)+'（分数を手で入れれば逆算はできます）';
@@ -838,7 +982,7 @@ function render(){
   syncField('sAlName',S.alarmShortcut||'');
   const alb=document.getElementById('sAlAsk'); if(alb)alb.classList.toggle('on',S.alarmAsk!==false);
   const alf=document.getElementById('sAlFull'); if(alf)alf.classList.toggle('on',S.alarmPayload==='full');
-  renderNow(P); renderAnc(P); syncParent();
+  renderNow(P); renderAnc(P); syncParent(); renderPlaceChips(); renderPlaces();
 }
 function syncField(id,v){const e=document.getElementById(id);if(e&&document.activeElement!==e)e.value=v}
 
@@ -1091,12 +1235,18 @@ function toggleSub(aid,sid){
 }
 async function editAddr(aid){
   const a=S.anchors.find(x=>x.id===aid); if(!a)return;
-  const q=prompt('住所を入れる（空にすると「行かなくていい」になります）\n分数を直接入れたいときは「30分」のように書いてもOK',a.addr||'');
+  const saved=placeList().map(p=>p.name).join('／');
+  const q=prompt('住所を入れる（空にすると「行かなくていい」になります）'
+    +'\n分数を直接入れたいときは「30分」のように書いてもOK'
+    +(saved?'\nよく行く場所の名前でもOK：'+saved:''),a.addr||'');
   if(q===null)return;
   const v=q.trim();
   if(!v){a.addr='';a.lat=null;a.lng=null;a.travelMin=null;save();render();return}
   const m=v.match(/^(\d+)\s*分?$/);
   if(m){a.addr=a.addr||'（手入力）';a.travelMin=+m[1];save();render();toast('片道'+m[1]+'分にした');return}
+  const hit=findPlace(v);
+  if(hit){a.addr=hit.name;a.lat=hit.lat;a.lng=hit.lng;a.travelMin=hit.travelMin!=null?hit.travelMin:null;
+    if(hit.mode)a.mode=hit.mode;save();render();toast('★ '+hit.name+' にした');return}
   toast('住所を調べてる…');
   try{const g=await geocode(v);a.addr=g.label;a.lat=g.lat;a.lng=g.lng;a.travelMin=null;save();render();toast('✓ '+shortAddr(g.label));}
   catch(e){a.addr=v;a.lat=null;a.lng=null;save();render();alert(e.message||e)}
@@ -1296,7 +1446,10 @@ function showTab(p){
 /* 住所欄が編集前と同じなら元の座標を保つ。変わっていれば検索結果（無ければ座標なし） */
 function resolveAddr(typed,g,orig){
   if(orig&&typed===orig.addr)return {addr:orig.addr,lat:orig.lat,lng:orig.lng,travelMin:orig.travelMin};
-  if(g)return {addr:g.label,lat:g.lat,lng:g.lng,travelMin:null};
+  if(g)return {addr:g.label,lat:g.lat,lng:g.lng,travelMin:g.travelMin!=null?g.travelMin:null};
+  /* 「調べる」を押さずに、よく行く場所の名前だけ打って追加した時も拾う */
+  const p=typed?findPlace(typed):null;
+  if(p)return {addr:p.name,lat:p.lat,lng:p.lng,travelMin:p.travelMin!=null?p.travelMin:null};
   return {addr:typed,lat:null,lng:null,travelMin:null};
 }
 
@@ -1358,12 +1511,11 @@ function importBackup(input){
 
 /* ================= UI 配線 ================= */
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{showTab(b.dataset.p);window.scrollTo(0,0)});
-['aMode','sMode','iMode'].forEach(id=>{
-  const e=document.getElementById(id);
+['aMode','sMode','iMode','pMode'].forEach(id=>{
+  const e=document.getElementById(id); if(!e)return;
   e.innerHTML=Object.keys(MODES).map(k=>'<option value="'+k+'">'+MODES[k].n+'</option>').join('');
   e.value=DEFMODE;
-  e.onchange=()=>{const k=id[0], g=GEOBUF[k];
-    if(g)document.getElementById(k+'Geo').innerHTML='✓ '+esc(g.label)+describeLeg(g,e.value)};
+  e.onchange=()=>showGeo(id[0]);
 });
 function chipRow(el,input,vals){
   el.innerHTML=vals.map(v=>'<button type="button" class="chip" data-v="'+v+'">'+(v>=60?(v%60?v/60|0:v/60)+'時間'+(v%60?v%60+'分':''):v+'分')+'</button>').join('');
@@ -1402,7 +1554,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-12-2';
+const APP_VERSION='2026-09-12-3';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
