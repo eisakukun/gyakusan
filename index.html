@@ -508,26 +508,48 @@ async function geoOnce(q,jpOnly){
   if(!j.length)return null;
   return {lat:+j[0].lat,lng:+j[0].lon,label:j[0].display_name};
 }
+/* Googleマップからコピペした住所をそのまま通せるようにする。
+   「日本、〒150-0011 東京都渋谷区東１丁目２２−６」は地図データにそのままでは無いので、
+   全角を半角に直し、国名・郵便番号・階数を外して、郵便番号は最後の砦に取っておく。 */
+function normAddr(q){
+  let s=String(q).trim()
+    .replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0))
+    .replace(/(\d)\s*[-－−ー‐‑–—―]\s*(\d)/g,'$1-$2')   /* 数字にはさまれた棒だけハイフンに（カタカナの長音は触らない） */
+    .replace(/[、,]/g,' ');
+  const zm=s.match(/〒?\s*(\d{3})-?(\d{4})/);
+  const zip=zm?zm[1]+'-'+zm[2]:null;
+  s=s.replace(/〒?\s*\d{3}-?\d{4}/,' ')
+     .replace(/^\s*(日本|Japan|JAPAN)\s*/,'')
+     .replace(/\s*\d+\s*[FfＦ階]\s*$/,'')            /* 末尾の「3F」「3階」 */
+     .replace(/\s+/g,' ').trim();
+  return {q:s||String(q).trim(), zip};
+}
 /* 日本の番地は地図データに無いことが多い。末尾の数字を段階的に落として当てにいく */
 function addrVariants(q){
   const out=[q.trim()]; let prev=q.trim();
-  for(let i=0;i<3;i++){
-    const n=prev.replace(/[\s,、]*[0-9０-９]+\s*(丁目|番地?|号)?([-－ー‐‑–—][0-9０-９]+\s*(丁目|番地?|号)?)*\s*$/,'').trim();
+  for(let i=0;i<4;i++){
+    const n=prev.replace(/[\s,、]*[0-9０-９]+\s*(丁目|番地?|号)?([-－ー−‐‑–—][0-9０-９]+\s*(丁目|番地?|号)?)*\s*$/,'').trim();
     if(n&&n!==prev){out.push(n);prev=n}else break;
   }
   return [...new Set(out)].filter(Boolean);
 }
 async function geocode(q){
-  const vs=addrVariants(q);
+  const N=normAddr(q);
+  const vs=addrVariants(N.q);
   /* まず日本国内だけで探す（「新宿駅」が海外の地名に化けるのを防ぐ）。
      国内で1つも無ければ、海外の可能性として世界から探し直す */
   for(const v of vs){
     const g=await geoOnce(v,true);
-    if(g)return {...g, matched:v, exact:v===q.trim()};
+    if(g)return {...g, matched:v, exact:v===N.q};
+  }
+  /* 町名でも当たらないとき、郵便番号は丁目くらいまで当ててくれる */
+  if(N.zip){
+    const g=await geoOnce(N.zip,true);
+    if(g)return {...g, matched:N.zip, exact:false, byZip:true};
   }
   for(const v of vs){
     const g=await geoOnce(v,false);
-    if(g)return {...g, matched:v, exact:v===q.trim(), abroad:true};
+    if(g)return {...g, matched:v, exact:v===N.q, abroad:true};
   }
   throw new Error('見つからなかった。市区町村＋町名だけにするか、施設名（例：井の頭公園）で試してみて');
 }
@@ -543,7 +565,9 @@ async function lookup(k){
     GEOBUF[k]=g;
     out.className='geo ok';
     out.innerHTML='✓ '+esc(g.label)
-      +(g.exact?'':'<br><span style="color:#ffb454">※ 番地までは特定できず「'+esc(g.matched)+'」で計算します</span>')
+      +(g.exact?''
+        :g.byZip?'<br><span style="color:#ffb454">※ 番地が地図に無かったので<b>郵便番号 '+esc(g.matched)+'</b>の場所で計算します（丁目くらいの精度）</span>'
+        :'<br><span style="color:#ffb454">※ 番地までは特定できず「'+esc(g.matched)+'」で計算します</span>')
       +describeLeg(g,document.getElementById(k+'Mode').value);
   }catch(e){
     GEOBUF[k]=null;out.className='geo err';
@@ -1378,7 +1402,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-12-1';
+const APP_VERSION='2026-09-12-2';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
