@@ -52,6 +52,9 @@ h2:first-child{margin-top:6px}
 .lr.m{color:var(--dim);font-size:13px}
 .lr.mv{color:var(--acc);font-size:13px}
 .lr.mv i{font-style:normal;font-size:11px;color:var(--dim2)}
+.lr.sl{color:#b9a3ff;font-size:13px}
+.lr.sl i{font-style:normal;font-size:11px;opacity:.8}
+.tli.sl:before{background:#b9a3ff}
 .lr.mv.miss{color:var(--warn);cursor:pointer}
 .lr.mv.miss i{color:var(--warn);opacity:.8}
 .lr.mv.miss b{border:1px dashed #4a3a22;border-radius:8px;padding:2px 9px;font-size:12px;font-weight:600}
@@ -351,6 +354,21 @@ nav button.on{color:var(--acc)}
         <label>移動時間の迂回補正（%）— 直線距離をこれだけ増やして道のりにする</label>
         <input type="number" id="sDet" min="0" step="5" oninput="S.detour=+this.value||0;save();render()">
       </div>
+      <div style="height:14px"></div>
+      <div class="chips">
+        <button type="button" class="chip" id="sSleepOn"
+          onclick="S.sleepOn=(S.sleepOn===false);save();render()">😴 夜をまたぐ予定は睡眠も引く</button>
+      </div>
+      <div class="f" style="margin-top:10px">
+        <div class="two">
+          <div><label>睡眠（時間）</label>
+            <input type="number" id="sSleepH" min="0" step="0.5" oninput="S.sleepH=+this.value||0;save();render()"></div>
+          <div><label>起きてからの余裕（時間）</label>
+            <input type="number" id="sSleepBuf" min="0" step="0.5" oninput="S.sleepBufH=+this.value||0;save();render()"></div>
+        </div>
+      </div>
+      <p class="tiny" style="margin-top:8px">約束までのあいだに<b>朝5時</b>を越えるときだけ、1晩ぶん引きます（2晩なら2回）。
+      0時で区切らないのは、23:30 に 0:30 の約束を見ても寝る時間は無いのと、深夜1時に明日10時の約束を見たらまだ寝ていない夜だからです。</p>
     </div>
 
     <h2>⏰ アラーム（iPhone）</h2>
@@ -416,6 +434,7 @@ const DEFMODE='train';
 /* ================= state ================= */
 const KEY='gyakusan.v2', OLDKEY='gyakusan.v1';
 const DEF={hereName:'家', here:null, buffer:10, fudge:20, detour:25, anchors:[], trial:null, places:[],
+  sleepOn:true, sleepH:7, sleepBufH:1,
   alarmShortcut:'逆算アラーム', alarmAsk:true, alarmPayload:'time'};
 let S=load();
 
@@ -996,10 +1015,32 @@ function plan(){
     else{const L=legMin(cur,A,A.mode); if(L){toAnchor=L.min;anchorKm=L.km;totalKm+=L.km} else anchorUnknown=true}
   }
   const buffer=S.buffer||0;
-  const need=sum+toAnchor+buffer;
+  /* 約束までに夜をまたぐなら、寝る時間も引く。1晩＝睡眠＋起きてからの余裕 */
+  const nights=S.sleepOn===false?0:nightsBetween(now,A.d);
+  const sleepMin=Math.round((S.sleepH||0)*60), sleepBuf=Math.round((S.sleepBufH||0)*60);
+  const sleepPer=sleepMin+sleepBuf, sleepAll=nights*sleepPer;
+  const need=sum+toAnchor+buffer+sleepAll;
   const slack=untilAnchor-need;
+  const leaveAt=plus(A.d,-(toAnchor+buffer));          /* 出発（場所が無ければ動き出す）時刻 */
+  const bedAt=nights?plus(leaveAt,-sleepPer):null;      /* 前の晩、遅くともこの時刻に寝る */
+  const wakeAt=nights?plus(bedAt,sleepMin):null;
   return {now,A,up,untilAnchor,subs,active,steps,sum,toAnchor,anchorKm,anchorUnknown,totalKm,
-          fromNameToAnchor:curName,buffer,need,slack,startBy:plus(A.d,-need)};
+          fromNameToAnchor:curName,buffer,need,slack,startBy:plus(A.d,-need),
+          nights,sleepMin,sleepBuf,sleepPer,sleepAll,leaveAt,bedAt,wakeAt};
+}
+/* 今日と違う日の時刻には日付を添える（01:28 が今夜か明日の夜か分からなくなるので） */
+const hmD=(d,base)=>{const b=base||new Date();
+  return (d.getFullYear()===b.getFullYear()&&d.getMonth()===b.getMonth()&&d.getDate()===b.getDate())
+    ? hm(d) : (d.getMonth()+1)+'/'+d.getDate()+'('+DOW[d.getDay()]+') '+hm(d)};
+/* 「夜をまたぐ」の数え方：朝5時の境目をいくつ越えるか。
+   0時で数えると、23:30→0:30 の約束でも8時間引かれて「足りない」になってしまう。
+   逆に深夜1時に明日10時の約束を見ても、まだ寝ていない夜として1晩に数える。 */
+function nightsBetween(from,to){
+  const b=new Date(from); b.setHours(5,0,0,0);
+  if(b<=from)b.setDate(b.getDate()+1);
+  let n=0;
+  while(b<=to){n++; b.setDate(b.getDate()+1)}
+  return n;
 }
 
 /* ================= アラーム（iOSショートカット呼び出し） =================
@@ -1088,6 +1129,8 @@ function render(){
         : '✓ 取得ずみ（誤差 ±'+S.here.acc+'m）'+(mins>10?'／'+mins+'分前に取得。移動したなら取り直してね':'');
   syncField('sHere',S.hereName||''); syncField('sBuf',S.buffer); syncField('sFudge',S.fudge); syncField('sDet',S.detour);
   syncField('sAlName',S.alarmShortcut||'');
+  syncField('sSleepH',S.sleepH); syncField('sSleepBuf',S.sleepBufH);
+  const slb=document.getElementById('sSleepOn'); if(slb)slb.classList.toggle('on',S.sleepOn!==false);
   const alb=document.getElementById('sAlAsk'); if(alb)alb.classList.toggle('on',S.alarmAsk!==false);
   const alf=document.getElementById('sAlFull'); if(alf)alf.classList.toggle('on',S.alarmPayload==='full');
   renderNow(P); renderAnc(P); syncParent(); renderPlaceChips(); renderPlaces();
@@ -1124,9 +1167,14 @@ function renderNow(P){
     +(late?dur(-P.slack):dur(P.slack))+'</div>'
     +'<div class="sub">約束まで あと '+dur(P.untilAnchor)+'。'+(late
       ? 'どれか外すか、短くする。'
-      : '全部やるなら <b style="color:#e8edf3">'+hm(P.startBy)+'</b> までに'
-        +(P.toAnchor?'<b style="color:#e8edf3">出れば</b>いい（'+esc(goMode)+' '+dur(P.toAnchor)+'＋余裕'+dur(P.buffer)+'）。'
-                    :'動き出せばいい。'))+'</div>'
+      : P.nights
+        ? '<br>🛏 '+(P.nights>1?'前の晩は':'')+'遅くとも <b style="color:#e8edf3">'+hmD(P.bedAt,P.now)+'</b> に寝る'
+          +' → ⏰ <b style="color:#e8edf3">'+hmD(P.wakeAt,P.now)+'</b> 起き'
+          +' → '+(P.toAnchor?'🚶 <b style="color:#e8edf3">'+hmD(P.leaveAt,P.now)+'</b> に出る':'<b style="color:#e8edf3">'+hmD(P.leaveAt,P.now)+'</b> に動き出す')
+          +(P.steps.length?'。<br>やることは <b style="color:#e8edf3">'+hm(P.startBy)+'</b> までに始めれば間に合う':'')+'。'
+        : '全部やるなら <b style="color:#e8edf3">'+hm(P.startBy)+'</b> までに'
+          +(P.toAnchor?'<b style="color:#e8edf3">出れば</b>いい（'+esc(goMode)+' '+dur(P.toAnchor)+'＋余裕'+dur(P.buffer)+'）。'
+                      :'動き出せばいい。'))+'</div>'
     +'<div class="ldg">';
 
   if(!P.steps.length&&!P.toAnchor)h+='<div class="lr m"><span>やることはまだ無い</span><b>0分</b></div>';
@@ -1144,6 +1192,8 @@ function renderNow(P){
   /* 場所が無いと移動が1分も引かれない。黙って0にせず、その場で入れられるようにする */
   else h+='<div class="lr mv miss" onclick="editAddr(\''+A.id+'\')"><span>🚶 '+esc(P.fromNameToAnchor)
       +' → '+esc(A.title)+' <i>ここまで何分かかる？</i></span><b>＋ 入れる</b></div>';
+  if(P.nights)h+='<div class="lr sl"><span>😴 睡眠 '+dur(P.sleepMin)+(P.sleepBuf?'＋起きてからの余裕 '+dur(P.sleepBuf):'')
+      +(P.nights>1?' <i>×'+P.nights+'晩</i>':'')+'</span><b>−'+dur(P.sleepAll)+'</b></div>';
   if(P.buffer)h+='<div class="lr m"><span>出発前の余裕</span><b>−'+dur(P.buffer)+'</b></div>';
   h+='<div class="lr tot"><span>'+esc(A.title)+'（'+hm(A.d)+'）まで</span><b>あと '
     +dur(P.untilAnchor)+'</b></div></div>'
@@ -1161,20 +1211,29 @@ function renderNow(P){
   /* タイムライン */
   h+='<h2>逆算タイムライン</h2><div class="card"><div class="tl">';
   let c=new Date(P.now);
-  h+=tli(hm(c),'いま','');
+  const hmT=d=>hmD(d,P.now);   /* 日が変わった時刻には日付を添える */
+  h+=tli(hmT(c),'いま','');
   P.steps.forEach(st=>{
-    if(st.tv){c=plus(c,st.tv);h+=tli(hm(c),'<span class="mvx">'+esc(st.s.title)+' 着</span>（'
+    if(st.tv){c=plus(c,st.tv);h+=tli(hmT(c),'<span class="mvx">'+esc(st.s.title)+' 着</span>（'
       +(st.km!=null?st.km.toFixed(1)+'km・':'')+'移動'+dur(st.tv)+'）','mv')}
     const e=plus(c,st.work);
-    h+=tli(hm(c)+'–'+hm(e),esc(st.s.title),'');
+    h+=tli(hmT(c)+'–'+hmT(e),esc(st.s.title),'');
     c=e;
   });
-  if(P.slack>0){h+=tli(hm(c)+'–'+hm(plus(c,P.slack)),'空き '+dur(P.slack),'');c=plus(c,P.slack)}
+  if(P.nights){
+    /* 空きは寝る時刻まで。2晩以上なら、その間の夜の睡眠もこの区間に入っている */
+    const gap=Math.max(0,P.slack)+(P.nights-1)*P.sleepPer;
+    if(gap>0){h+=tli(hmT(c)+'–'+hmT(plus(c,gap)),'空き '+dur(Math.max(0,P.slack))
+      +(P.nights>1?'<span class="mvx" style="color:#b9a3ff">（ほかに睡眠 '+(P.nights-1)+'晩ぶん）</span>':''),'');c=plus(c,gap)}
+    h+=tli(hmT(c),'🛏 寝る（遅くとも）','sl'); c=plus(c,P.sleepMin);
+    h+=tli(hmT(c),'⏰ 起きる'+(P.sleepBuf?'（支度・余裕 '+dur(P.sleepBuf)+'）':''),'sl'); c=plus(c,P.sleepBuf);
+  }
+  else if(P.slack>0){h+=tli(hmT(c)+'–'+hmT(plus(c,P.slack)),'空き '+dur(P.slack),'');c=plus(c,P.slack)}
   if(P.toAnchor){
-    h+=tli(hm(c),'🚶 '+esc(A.title)+'へ出発（'+(P.anchorKm!=null?P.anchorKm.toFixed(1)+'km・':'')+dur(P.toAnchor)+'）','k');c=plus(c,P.toAnchor);
-    h+=tli(hm(c),'着'+(P.buffer?'（余裕'+dur(P.buffer)+'）':''),'');
-  }else if(P.buffer)h+=tli(hm(c),'余裕 '+dur(P.buffer),'');
-  h+=tli(hm(A.d),'⚑ '+esc(A.title),'f');
+    h+=tli(hmT(c),'🚶 '+esc(A.title)+'へ出発（'+(P.anchorKm!=null?P.anchorKm.toFixed(1)+'km・':'')+dur(P.toAnchor)+'）','k');c=plus(c,P.toAnchor);
+    h+=tli(hmT(c),'着'+(P.buffer?'（余裕'+dur(P.buffer)+'）':''),'');
+  }else if(P.buffer)h+=tli(hmT(c),'余裕 '+dur(P.buffer),'');
+  h+=tli(hmT(A.d),'⚑ '+esc(A.title),'f');
   h+='</div></div>';
 
   if(!hasPlace(A))
@@ -1662,7 +1721,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-13-2';
+const APP_VERSION='2026-09-14-2';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
