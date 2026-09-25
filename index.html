@@ -389,6 +389,21 @@ nav button.on{color:var(--acc)}
       <div class="tiny"><b>かんたん版（おすすめ・2アクション）</b>：①ショートカットの入力を受け取る（テキスト）②アラームを作成（時刻＝ショートカットの入力）。送るのは <b>17:18</b> だけ。<br><b>「ラベルも送る」を入れた時</b>：送るのが <b>17:18|渋谷で打ち合わせ|2026-08-31</b> になるので、①のあとに「テキストを分割（区切り <b>|</b>）」と「リストから項目を取得」を足して、時刻とラベルに分ける。<br>どちらも設定ⓘの「実行前に尋ねる」はオフに。<br>※Webからは直接アラームをかけられないので、ショートカットに投げる形にしている。</div>
     </div>
 
+    <h2>同期（iPhone・Mac）</h2>
+    <div class="card">
+      <p class="tiny">同じ<b>同期キー</b>を入れた端末どうしで、予定・サブ目標・よく行く場所・設定が同じになります。Macの右上（Hammerspoon）もここを読みます。<b>現在地だけは端末ごと</b>で、同期しません。</p>
+      <div style="height:8px"></div>
+      <input id="sSyncKey" placeholder="同期キーを貼る" autocomplete="off" autocapitalize="off" spellcheck="false"
+        onchange="setSyncKey(this.value)">
+      <div style="height:8px"></div>
+      <div class="two">
+        <button class="btn sec" onclick="syncNow()">いま同期</button>
+        <button class="btn sec" onclick="setSyncKey('')">この端末では切る</button>
+      </div>
+      <div style="height:8px"></div>
+      <div class="tiny" id="syncMsg">まだ同期していません</div>
+    </div>
+
     <h2>バックアップ</h2>
     <div class="card">
       <div class="two">
@@ -397,7 +412,7 @@ nav button.on{color:var(--acc)}
       </div>
       <input type="file" id="bkFile" accept="application/json,.json" style="display:none" onchange="importBackup(this)">
       <div style="height:10px"></div>
-      <p class="tiny">予定・サブ目標はこの端末の中だけに保存されます。ホーム画面から削除すると消えるので、ときどき書き出してください。<br><br>
+      <p class="tiny">予定・サブ目標はこの端末の中に保存されます（同期キーを入れた時だけ、自分のGoogle Apps Scriptにも置きます）。ホーム画面から削除すると消えるので、ときどき書き出してください。<br><br>
       現在地の座標はどこにも送信しません。<b>住所を「調べる」を押したときだけ</b>、打った文字だけを
       <b>国土地理院</b>（住所→番地まで）と <b>OpenStreetMap</b>（駅名・店名）に送って緯度経度に変えます。
       位置情報そのものは送りません。座標を直接貼ったときは、どこにも送らずそのまま使います。</p>
@@ -467,7 +482,7 @@ function migrate(v1){
   });
   return s;
 }
-function save(){localStorage.setItem(KEY,JSON.stringify(S))}
+function save(){S.updatedAt=Date.now();localStorage.setItem(KEY,JSON.stringify(S));if(typeof pushSoon==='function')pushSoon()}
 function reset(){S=structuredClone(DEF);localStorage.removeItem(OLDKEY);save();render()}
 const uid=()=>Math.random().toString(36).slice(2,9);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -983,18 +998,19 @@ function nlpPreview(R,kind){
 }
 
 /* ================= 逆算の本体 ================= */
-function plan(){
+/* forA を渡すと、その予定について計算する（同期の要約で2件目以降も出すため。ひらめきの試しは入れない） */
+function plan(forA){
   const now=new Date();
   const up=S.anchors.map(a=>({...a,d:new Date(a.at)}))
     .filter(a=>!isNaN(a.d)&&a.d>now).sort((x,y)=>x.d-y.d);
-  const A=up[0]||null;
+  const A=forA?{...forA,d:new Date(forA.at)}:(up[0]||null);
   if(!A)return {now,A:null,up};
 
   const untilAnchor=(A.d-now)/60000;
   const subs=(A.subs||[]).filter(s=>!s.done);
   let active=subs.filter(s=>s.on!==false);
   /* 「ひらめき」を試しに入れた状態で計算する（確定ではない） */
-  if(S.trial)active=active.concat([Object.assign({id:'__trial',travelMin:null,on:true,done:false},S.trial,{__trial:true})]);
+  if(S.trial&&!forA)active=active.concat([Object.assign({id:'__trial',travelMin:null,on:true,done:false},S.trial,{__trial:true})]);
 
   let cur=S.here, curName=S.hereName||'いまの場所', sum=0, totalKm=0;
   const steps=[];
@@ -1721,7 +1737,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-14-2';
+const APP_VERSION='2026-09-25-1';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
@@ -1736,6 +1752,80 @@ async function checkVersion(){
 }
 checkVersion();
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){checkVersion();render()}});
+
+/* ================= 同期 =================
+   iPhone・Macのブラウザ・Macの右上（Hammerspoon）で同じ中身を見る。置き場は自分のGAS。
+   新しい方が勝つ（updatedAt）。ついでに「次の約束の要約」も送り、Macの右上はそれだけ読む。 */
+const SYNC_URL='https://script.google.com/macros/s/AKfycbxUeBgtZzO_O3waCGc4Qv8308wPdUhxex-svMGbIHcaiMONog4swI6xVPWj5H7wkLJG/exec';
+const SKEY='gyakusan.syncKey';
+const LOCAL_ONLY=['here','trial'];      /* 端末ごとに違ってよいもの（現在地・ひらめきの試し） */
+let syncKey=''; try{syncKey=localStorage.getItem(SKEY)||''}catch(e){}
+let _pushT=null, _pulling=false;
+function setSync(m,err){const e=document.getElementById('syncMsg');
+  if(e){e.textContent=(err?'⚠️ ':'✓ ')+m+'（'+hm(new Date())+'）';e.style.color=err?'#ff8a7a':''}}
+function setSyncKey(v){
+  syncKey=String(v||'').trim(); try{syncKey?localStorage.setItem(SKEY,syncKey):localStorage.removeItem(SKEY)}catch(e){}
+  syncField('sSyncKey',syncKey);
+  if(syncKey){setSync('キーを入れた。取りに行きます',false);pullNow()} else setSync('この端末では同期しない',false);
+}
+function sharedState(){const o={};for(const k in S)if(!LOCAL_ONLY.includes(k))o[k]=S[k];return o}
+function buildSummary(){
+  const now=new Date();
+  const up=S.anchors.filter(a=>{const d=new Date(a.at);return !isNaN(d)&&d>now})
+    .sort((x,y)=>new Date(x.at)-new Date(y.at)).slice(0,3);
+  return {v:1,genAt:Date.now(),buffer:S.buffer||0,sleepOn:S.sleepOn!==false,
+    sleepPer:Math.round(((S.sleepH||0)+(S.sleepBufH||0))*60),
+    items:up.map(a=>{const P=plan(a);const ok=hasPlace(a)&&!P.anchorUnknown;
+      return {id:a.id,title:a.title||'予定',at:P.A.d.getTime(),hasPlace:hasPlace(a),
+        toAnchor:Math.round(P.toAnchor),leaveAt:ok?P.leaveAt.getTime():null,
+        work:Math.round(P.sum),
+        subs:P.steps.map(x=>({t:x.s.title||'',min:Math.round(x.work+x.tv)}))}})};
+}
+async function pushNow(){
+  if(!syncKey||!navigator.onLine)return;
+  if(!S.updatedAt){S.updatedAt=Date.now();localStorage.setItem(KEY,JSON.stringify(S))}
+  const body=JSON.stringify({state:sharedState(),summary:buildSummary(),
+    from:/iPhone|iPad/.test(navigator.userAgent)?'iPhone':'Mac'});
+  try{
+    const r=await fetch(SYNC_URL+'?op=put&key='+encodeURIComponent(syncKey),
+      {method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body});
+    const j=await r.json(); if(!j.ok)throw new Error(j.err);
+    if(j.stale){setSync('向こうの方が新しかったので取り直す',false);return pullNow()}
+    setSync('送った',false);
+  }catch(e){setSync('送れなかった：'+e.message,true)}
+}
+function pushSoon(){if(!syncKey)return;clearTimeout(_pushT);_pushT=setTimeout(pushNow,1000)}
+async function pullNow(){
+  if(!syncKey||!navigator.onLine||_pulling)return; _pulling=true;
+  try{
+    const r=await fetch(SYNC_URL+'?key='+encodeURIComponent(syncKey)+'&have='+(S.updatedAt||0)+'&t='+Date.now());
+    const j=await r.json(); if(!j.ok)throw new Error(j.err);
+    /* この端末で初めての同期なら、棚にデータがあれば必ず棚を取る
+       （Macのブラウザに残っていた古いデータが、iPhoneの新しい方を上書きしないように） */
+    let first=false; try{first=!localStorage.getItem('gyakusan.synced')}catch(e){}
+    const mine=first?0:(S.updatedAt||0);
+    if(first&&!j.state&&j.updatedAt){   /* have= を付けて聞いたので中身が来ていない。取り直す */
+      _pulling=false; S.updatedAt=0; return pullNow();
+    }
+    try{localStorage.setItem('gyakusan.synced','1')}catch(e){}
+    if(j.state&&j.updatedAt>mine){
+      const keep={}; LOCAL_ONLY.forEach(k=>keep[k]=S[k]);
+      S=Object.assign({},DEF,j.state,keep); S.updatedAt=j.updatedAt;
+      localStorage.setItem(KEY,JSON.stringify(S));
+      render(); setSync('受け取った',false);
+      /* 要約（出発時刻）は現在地で変わる。この端末に現在地があれば、自分の位置で作り直して送る。
+         updatedAt は変えないので、相手とのあいだで往復は起きない */
+      if(S.here)pushSoon();
+    }else if(!j.updatedAt||j.updatedAt<mine){pushSoon(); setSync('こっちが新しいので送る',false)}
+    else setSync('同じ中身',false);
+  }catch(e){setSync('つながらない：'+e.message,true)}
+  finally{_pulling=false}
+}
+function syncNow(){if(!syncKey)return setSync('先に同期キーを入れてください',true);pullNow().then(()=>pushSoon())}
+syncField('sSyncKey',syncKey);
+pullNow();
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')pullNow()});
+setInterval(()=>{if(document.visibilityState==='visible')pullNow()},30000);
 
 render();
 setInterval(render,15000);
