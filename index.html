@@ -210,7 +210,7 @@ nav button.on{color:var(--acc)}
     <div class="qa">
       <input type="text" id="qaT" autocomplete="off" enterkeyhint="done"
         placeholder="＋ 思いついた予定をそのまま（例：明日15時 渋谷駅で打ち合わせ）"
-        oninput="qaInput()" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();qaAdd()}">
+        oninput="qaInput()" onkeydown="qaKey(event)">
       <div class="tiny" id="qaHint">打って Enter。画面は「いま」のまま。</div>
     </div>
     <div id="nowBody"></div>
@@ -1750,7 +1750,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-26-3';
+const APP_VERSION='2026-09-26-4';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
@@ -1770,6 +1770,18 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
    「予定」タブへ行かずに、思いついた一文を打って Enter。画面は「いま」のまま。
    読み方は予定タブと同じ parseNL（明日15時／19時半／30分後／金曜18時／@場所 など）。
    時刻だけなら「次に来るその時刻」（過ぎていたら明日）。 */
+/* 日本語の変換を確定する Enter では追加しない。
+   Safari（iPhone・Macの小窓）は確定の Enter で isComposing が false になるので、
+   keyCode 229 と「変換が終わった直後」も見て弾く */
+let qaIME=false;
+(function(){const q=document.getElementById('qaT'); if(!q)return;
+  q.addEventListener('compositionstart',()=>{qaIME=true});
+  q.addEventListener('compositionend',()=>{setTimeout(()=>{qaIME=false},80)});})();
+function qaKey(e){
+  if(e.key!=='Enter')return;
+  if(e.isComposing||e.keyCode===229||qaIME)return;
+  e.preventDefault(); qaAdd();
+}
 function qaParse(raw){
   const P=parseNL(raw,'when'), now=new Date();
   if(!P.time)return {P,ok:false};
