@@ -150,6 +150,16 @@ h2:first-child{margin-top:6px}
 .tick time{width:52px;flex-shrink:0;font-variant-numeric:tabular-nums}
 .tick span{white-space:nowrap}
 .tick i{flex:1;border-top:1px dashed #3a4654}
+.jobc{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
+.jobc .jt{font-size:12px;color:#ffd08a;margin-right:2px}
+.jobc button{background:transparent;border:1px solid #4a3f2a;color:#e6c894;border-radius:99px;padding:3px 10px;font-size:12px}
+.jobc button.on{background:#ffb454;border-color:#ffb454;color:#1a1408;font-weight:700}
+.jobc button.off{border-color:var(--line);color:var(--dim)}
+.jobc button.add{border-style:dashed;color:var(--dim);border-color:#3a4654}
+.jb{font-size:12px;color:#ffd08a;font-weight:600;margin-left:6px}
+.jobrow{display:flex;gap:6px;margin-bottom:6px}
+.jobrow input{flex:1;min-width:0}
+#mbar .mt{color:#9fb3c8;font-size:12px}
 .tl [data-t]{cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:manipulation}
 .tli.msel:before{background:#fff!important;box-shadow:0 0 0 4px rgba(106,169,255,.55);transform:scale(1.25)}
 .tli.msel time,.tick.msel time{color:#fff!important}
@@ -468,6 +478,14 @@ nav button.on{color:var(--acc)}
       <div class="tiny" id="syncMsg">まだ同期していません</div>
     </div>
 
+    <h2>仕事タグ</h2>
+    <div class="card">
+      <p class="tiny">予定に付けると、その時刻から仕事の時間だけ埋まる扱いになります。入力欄に名前を打つだけでも付きます（例：「17時 マッサ 90分」）。</p>
+      <div id="jobSet"></div>
+      <div style="height:8px"></div>
+      <button class="btn sec" onclick="jobAdd()">＋ 仕事の種類を足す</button>
+    </div>
+
     <h2>バックアップ</h2>
     <div class="card">
       <div class="two">
@@ -514,7 +532,8 @@ const DEFMODE='train';
 const KEY='gyakusan.v2', OLDKEY='gyakusan.v1';
 const DEF={hereName:'家', here:null, buffer:10, fudge:20, detour:25, anchors:[], trial:null, places:[],
   sleepOn:true, sleepH:7, sleepBufH:1,
-  alarmShortcut:'逆算アラーム', alarmAsk:true, alarmPayload:'time'};
+  alarmShortcut:'逆算アラーム', alarmAsk:true, alarmPayload:'time',
+  jobs:[{id:'massa',name:'マッサ',mins:[60,90,120],def:60}]};
 let S=load();
 
 function load(){
@@ -821,6 +840,27 @@ function renderPlaceChips(){
       +esc(p.name)+'</button>').join('');
   });
 }
+function renderJobs(){
+  const el=document.getElementById('jobSet'); if(!el||el.contains(document.activeElement))return;
+  el.innerHTML=jobList().map((j,i)=>'<div class="jobrow">'
+    +'<input type="text" value="'+esc(j.name)+'" placeholder="名前" onchange="jobEdit('+i+',\'name\',this.value)">'
+    +'<input type="text" value="'+j.mins.join(',')+'" placeholder="60,90,120" onchange="jobEdit('+i+',\'mins\',this.value)">'
+    +'<select onchange="jobEdit('+i+',\'def\',this.value)">'+j.mins.map(m=>'<option'+(m===j.def?' selected':'')+'>'+m+'</option>').join('')+'</select>'
+    +'<button class="del" onclick="jobDel('+i+')">×</button></div>').join('')
+    +'<div class="tiny">名前／選べる分数（カンマ区切り）／基本の分数</div>';
+}
+function jobEdit(i,k,v){
+  if(!S.jobs)S.jobs=structuredClone(DEF.jobs);
+  const j=S.jobs[i]; if(!j)return;
+  if(k==='name'){v=v.trim();if(!v)return;j.name=v}
+  if(k==='mins'){const a=String(v).split(/[,、\s]+/).map(Number).filter(n=>n>0);if(!a.length)return;j.mins=a;if(!a.includes(j.def))j.def=a[0]}
+  if(k==='def')j.def=+v;
+  save();render();
+}
+function jobAdd(){const n=prompt('仕事の名前（例：レッスン）');if(!n||!n.trim())return;
+  if(!S.jobs)S.jobs=structuredClone(DEF.jobs);
+  S.jobs.push({id:uid(),name:n.trim(),mins:[60],def:60});save();render()}
+function jobDel(i){if(!S.jobs)S.jobs=structuredClone(DEF.jobs);S.jobs.splice(i,1);save();render()}
 function renderPlaces(){
   const el=document.getElementById('plList'); if(!el)return;
   const ps=placeList();
@@ -1214,7 +1254,7 @@ function render(){
   const slb=document.getElementById('sSleepOn'); if(slb)slb.classList.toggle('on',S.sleepOn!==false);
   const alb=document.getElementById('sAlAsk'); if(alb)alb.classList.toggle('on',S.alarmAsk!==false);
   const alf=document.getElementById('sAlFull'); if(alf)alf.classList.toggle('on',S.alarmPayload==='full');
-  renderNow(P); renderAnc(P); syncParent(); renderPlaceChips(); renderPlaces();
+  renderNow(P); renderAnc(P); syncParent(); renderPlaceChips(); renderPlaces(); renderJobs();
 }
 function syncField(id,v){const e=document.getElementById(id);if(e&&document.activeElement!==e)e.value=v}
 
@@ -1235,15 +1275,15 @@ function renderSoft(P){
   const L=S.anchors.filter(a=>new Date(a.at)>P.now&&!(P.A&&a.id===P.A.id))
     .sort((x,y)=>new Date(x.at)-new Date(y.at));
   if(!L.length)return '';
-  let prev=P.A?P.A.d:null;   /* ひとつ前の確定の約束。そこから何時間あるかを添える */
+  let prev=P.A?jobEnd(P.A):null, prevJob=!!(P.A&&P.A.job);   /* ひとつ前の確定の約束（仕事なら終わる時刻）から何時間 */
   return '<h2>このあとの予定</h2>'+L.map(a=>{const d=new Date(a.at);
     if(!a.soft){
       const lv=anchorLeaveAt(a);
-      const gap=prev?'（前の予定から '+dur((d-prev)/60000)+'）':''; prev=d;
+      const gap=prev?'（前の予定'+(prevJob?'の仕事が終わって':'')+'から '+dur((d-prev)/60000)+'）':''; prev=jobEnd(a); prevJob=!!a.job;
       return '<div class="card upc" onclick="editAnchor(\''+a.id+'\')"><div class="sh"><b>⚑ '+hmD(d,P.now)+'</b> '+esc(a.title)
         +'<span class="r">あと '+dur((d-P.now)/60000)+'</span>'
         +'<button class="x" title="この予定を消す" onclick="event.stopPropagation();delQuick(\''+a.id+'\')">×</button></div>'
-        +'<div class="si">'+(lv?'🚶 '+hmD(lv,P.now)+' に出る':(hasPlace(a)?'🚶 移動時間まだ':'場所なし'))+gap+'</div></div>';
+        +'<div class="si">'+(lv?'🚶 '+hmD(lv,P.now)+' に出る':(hasPlace(a)?'🚶 移動時間まだ':'場所なし'))+gap+'</div>'+jobChips(a)+'</div>';
     }
     return '<div class="soft"><div class="sh"><span class="ring">◌</span><b>'+hmD(d,P.now)+'</b> '+esc(a.title)
       +'<i>'+dur(a.softMin||60)+'とみて</i></div>'
@@ -1335,7 +1375,7 @@ function renderNow(P){
   h+='<div class="lr tot"><span>'+esc(A.title)+'（'+hm(A.d)+'）まで</span><b>あと '
     +dur(P.untilAnchor)+'</b></div></div>'
     +'<div class="bar"><i style="width:'+Math.max(0,Math.min(100,P.slack/Math.max(1,P.untilAnchor)*100))
-    +'%;background:'+(late?'var(--ng)':'var(--ok)')+'"></i></div></div>';
+    +'%;background:'+(late?'var(--ng)':'var(--ok)')+'"></i></div>'+jobChips(A)+'</div>';
 
   h+=renderSoft(P);
   if(P.steps.length){
@@ -1382,10 +1422,11 @@ function renderNow(P){
     h+=tlx(c,hmT(c),'🚶 '+esc(A.title)+'へ出発（'+(P.anchorKm!=null?P.anchorKm.toFixed(1)+'km・':'')+dur(P.toAnchor)+'）','k');c=plus(c,P.toAnchor);
     h+=tlx(c,hmT(c),'着'+(P.buffer?'（余裕'+dur(P.buffer)+'）':''),'buf');
   }else if(P.buffer)h+=tlx(c,hmT(c),'余裕 '+dur(P.buffer),'buf');
-  h+=tlx(A.d,hmT(A.d),'⚑ '+esc(A.title),'f');
+  h+=A.job?tlx(A.d,hmT(A.d)+'–'+hmT(jobEnd(A)),'⚑ '+esc(A.title)+jbTag(A),'f')
+          :tlx(A.d,hmT(A.d),'⚑ '+esc(A.title),'f');
   /* そのあとの約束も続けて描く。間は「空き」、未確定は点線。
      次の約束より後ろは逆算していない（移動が分かれば出発時刻だけ添える） */
-  let prevT=A.d;
+  let prevT=jobEnd(A);
   const rest=S.anchors.filter(a=>a.id!==A.id&&new Date(a.at)>A.d).sort((x,y)=>new Date(x.at)-new Date(y.at));
   const softs=rest.filter(a=>a.soft), firms=rest.filter(a=>!a.soft);
   const softIn=(from,to)=>softs.filter(a=>{const d=new Date(a.at);return d>=from&&(!to||d<to)})
@@ -1397,8 +1438,9 @@ function renderNow(P){
     if(until>prevT)h+=tlx(prevT,hmT(prevT)+'–'+hmT(until),'空き '+dur((until-prevT)/60000),'free');
     h+=softIn(prevT,d);                         /* この空きの中にある未確定 */
     if(lv&&lv>prevT)h+=tlx(lv,hmT(lv),'🚶 '+esc(a.title)+'へ出発','k');
-    h+=tlx(d,hmT(d),'⚑ '+esc(a.title),'f');
-    prevT=d;
+    h+=a.job?tlx(d,hmT(d)+'–'+hmT(jobEnd(a)),'⚑ '+esc(a.title)+jbTag(a),'f')
+            :tlx(d,hmT(d),'⚑ '+esc(a.title),'f');
+    prevT=a.job?jobEnd(a):d;
   });
   h+=softIn(prevT,null);                        /* 最後の約束より後ろの未確定 */
   h+='</div></div>';
@@ -1436,6 +1478,14 @@ function renderNow(P){
    描き直し（15秒ごと）があっても選んだ時刻は覚えておいて付け直す */
 let mA=null, mB=null, mDown=null, mSkipUp=0;
 function mRow(e){const r=e.target.closest&&e.target.closest('.tl [data-t]');return r?+r.dataset.t:null}
+/* あいだに入っている仕事の時間（はみ出している分は切る） */
+function workBetween(a,b){
+  let min=0; const nm=[];
+  S.anchors.forEach(x=>{if(!x.job||x.soft)return;
+    const s0=+new Date(x.at), e0=+jobEnd(x), o=Math.min(e0,b)-Math.max(s0,a);
+    if(o>0){min+=o/60000; if(!nm.includes(x.job.name))nm.push(x.job.name)}});
+  return {min:Math.round(min),names:nm.join('・')};
+}
 function measure(a,b){mA=Math.min(a,b);mB=Math.max(a,b);applyMeasure()}
 function clearMeasure(){mA=mB=null;applyMeasure()}
 function applyMeasure(){
@@ -1448,7 +1498,12 @@ function applyMeasure(){
   const A_=new Date(mA);
   bar.innerHTML=mB===null
     ? '⏱ <b>'+hmD(A_)+'</b> から　もう1つ丸を押すと、そこまでの時間が出る<button onclick="clearMeasure()">×</button>'
-    : '⏱ <b>'+hmD(A_)+'</b> → <b>'+hmD(new Date(mB))+'</b>　<big>'+dur((mB-mA)/60000)+'</big><button onclick="clearMeasure()">×</button>';
+    : (()=>{const tot=(mB-mA)/60000, w=workBetween(mA,mB);
+        return '⏱ <b>'+hmD(A_)+'</b> → <b>'+hmD(new Date(mB))+'</b>　'
+          +(w.min>0
+            ? '<span class="mt">'+dur(tot)+' − 💼'+esc(w.names)+' '+dur(w.min)+' ＝</span><big>'+dur(tot-w.min)+'</big>'
+            : '<big>'+dur(tot)+'</big>')
+          +'<button onclick="clearMeasure()">×</button>'})();
 }
 (function(){
   const nb=document.getElementById('nowBody');
@@ -1487,6 +1542,7 @@ function renderAnc(P){
       +'<button class="del" onclick="delAnchor(\''+a.id+'\')">×</button></div>';
     h+=addrLine(a,'anchor');
     const subs=(a.subs||[]);
+    if(!past)h+=jobChips(a);
     h+='<div class="subs">';
     h+=subs.length?subs.map(s=>{
       const on=s.on!==false&&!s.done;
@@ -1927,7 +1983,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-26-13';
+const APP_VERSION='2026-09-26-14';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
@@ -1947,6 +2003,45 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
    「予定」タブへ行かずに、思いついた一文を打って Enter。画面は「いま」のまま。
    読み方は予定タブと同じ parseNL（明日15時／19時半／30分後／金曜18時／@場所 など）。
    時刻だけなら「次に来るその時刻」（過ぎていたら明日）。 */
+/* ================= 仕事タグ =================
+   予定に「💼 マッサ 60分」を付けると、その時刻から仕事の時間だけ埋まる扱いになる。
+   種類は設定で増やせる（S.jobs）。分数は種類ごとの候補から選ぶ（基本は def） */
+/* 題名が仕事の名前そのものなら「💼60分」だけ */
+const jbTag=a=>' <span class="jb">💼 '+(a.title===a.job.name?'':esc(a.job.name)+' ')+a.job.min+'分</span>';
+const jobList=()=>(S.jobs&&S.jobs.length?S.jobs:DEF.jobs);
+const jobEnd=a=>{const d=new Date(a.at);return a.job?plus(d,a.job.min):d};
+function jobOf(name){return jobList().find(j=>j.name===name)}
+function setJob(id,name,min){
+  const a=S.anchors.find(x=>x.id===id); if(!a)return;
+  if(!name){delete a.job;save();render();toast('「'+a.title+'」の仕事タグを外した');return}
+  const j=jobOf(name); a.job={name,min:min||(j&&j.def)||60};
+  save();render();toast('💼 '+name+' '+dur(a.job.min)+' を付けた');
+}
+let jobOpen=null;   /* 「＋仕事」を開いている予定 */
+function jobChips(a){
+  const st='event.stopPropagation();';
+  if(a.job){
+    const j=jobOf(a.job.name), mins=(j&&j.mins)||[a.job.min];
+    return '<div class="jobc" onclick="event.stopPropagation()"><span class="jt">💼 '+esc(a.job.name)+'</span>'
+      +mins.map(m=>'<button class="'+(m===a.job.min?'on':'')+'" onclick="'+st+'setJob(\''+a.id+'\',\''+esc(a.job.name)+'\','+m+')">'+m+'分</button>').join('')
+      +'<button class="off" onclick="'+st+'setJob(\''+a.id+'\',null)">外す</button></div>';
+  }
+  if(jobOpen===a.id)
+    return '<div class="jobc" onclick="event.stopPropagation()"><span class="jt">💼 どの仕事？</span>'
+      +jobList().map(j=>'<button onclick="'+st+'jobOpen=null;setJob(\''+a.id+'\',\''+esc(j.name)+'\')">'+esc(j.name)+'</button>').join('')
+      +'<button class="off" onclick="'+st+'jobOpen=null;render()">やめる</button></div>';
+  return '<div class="jobc" onclick="event.stopPropagation()"><button class="add" onclick="'+st+'jobOpen=\''+a.id+'\';render()">＋ 仕事</button></div>';
+}
+/* 打った文に仕事の名前があれば付ける。「90分」「1時間半」「2時間」があって候補にあればその分数 */
+function jobFromText(raw){
+  const t=Z2H(raw); const j=jobList().find(j=>t.indexOf(j.name)>=0); if(!j)return null;
+  let min=j.def, cut=null;
+  const m=t.match(/(\d+)\s*時間\s*(半)?(?!後)/), n=t.match(/(\d+)\s*分間?(?!後)/);
+  const cand=m?(+m[1])*60+(m[2]?30:0):n?+n[1]:null;
+  if(cand&&j.mins.includes(cand)){min=cand;cut=(m||n)[0]}
+  return {name:j.name,min,cut};
+}
+
 /* 日本語の変換を確定する Enter では追加しない。
    Safari（iPhone・Macの小窓）は確定の Enter で isComposing が false になるので、
    keyCode 229 と「変換が終わった直後」も見て弾く */
@@ -1963,6 +2058,7 @@ function qaKey(e){
    「1時間」「90分」があれば、それを入れた時にかかる時間とみる（無ければ1時間） */
 const SOFT_RE=/\s*(未確定|かも|[?？])\s*/g;
 function qaParse(raw){
+  const job=jobFromText(raw); if(job&&job.cut)raw=Z2H(raw).replace(job.cut,' ');
   const soft=SOFT_RE.test(raw); SOFT_RE.lastIndex=0;
   raw=raw.replace(SOFT_RE,' ');
   let softMin=null;
@@ -1972,7 +2068,7 @@ function qaParse(raw){
     if(m){softMin=(+m[1])*60+(m[2]?30:0);raw=t.replace(m[0],' ')}
     else if(n){softMin=+n[1];raw=t.replace(n[0],' ')}
   }
-  const R=qaParse0(raw); R.soft=soft; R.softMin=softMin||60; return R;
+  const R=qaParse0(raw); R.soft=soft; R.softMin=softMin||60; R.job=job?{name:job.name,min:job.min}:null; return R;
 }
 function qaParse0(raw){
   const P=parseNL(raw,'when'), now=new Date();
@@ -1997,7 +2093,8 @@ function qaInput(){
   const Q=qaParse(v);
   if(Q.ok){h.className='tiny ok';
     h.textContent='→ '+(Q.soft?'◌ ':'')+hmD(new Date(Q.at))+'「'+Q.title+'」'+(Q.P.addr?'　📍'+Q.P.addr+(Q.P.addrGuess?'？':''):'')
-      +(Q.soft?'　未確定・'+dur(Q.softMin)+'とみて（計算には入れない）':'')+'　Enterで入れる'}
+      +(Q.soft?'　未確定・'+dur(Q.softMin)+'とみて（計算には入れない）':'')
+      +(Q.job?'　💼 '+Q.job.name+' '+Q.job.min+'分':'')+'　Enterで入れる'}
   else{h.className='tiny ng';
     h.textContent=Q.past?'その時刻はもう過ぎている':'「いつ」が見つからない（例：15時／明日19時／30分後／金曜18時半）'}
 }
@@ -2009,7 +2106,7 @@ async function qaAdd(){
   const id=uid();
   S.anchors.push({id,title:Q.title,at:Q.at,addr:A.addr,lat:A.lat,lng:A.lng,
     mode:(pl&&pl.mode)||DEFMODE,travelMin:A.travelMin,subs:[],
-    ...(Q.soft?{soft:true,softMin:Q.softMin}:{})});
+    ...(Q.soft?{soft:true,softMin:Q.softMin}:{}),...(Q.job?{job:Q.job}:{})});
   save(); el.value=''; qaInput(); render();
   toast((Q.soft?'◌ 未確定で ':'')+'「'+Q.title+'」を入れた（'+hmD(new Date(Q.at))+'）');
   el.focus();
@@ -2056,7 +2153,7 @@ function buildSummary(){
   return {v:1,genAt:Date.now(),buffer:S.buffer||0,sleepOn:S.sleepOn!==false,soft,
     sleepPer:Math.round(((S.sleepH||0)+(S.sleepBufH||0))*60),
     items:up.map(a=>{const P=plan(a);const ok=hasPlace(a)&&!P.anchorUnknown;
-      return {id:a.id,title:a.title||'予定',at:P.A.d.getTime(),hasPlace:hasPlace(a),
+      return {id:a.id,title:a.title||'予定',at:P.A.d.getTime(),hasPlace:hasPlace(a),job:a.job||null,
         toAnchor:Math.round(P.toAnchor),leaveAt:ok?P.leaveAt.getTime():null,
         work:Math.round(P.sum),
         subs:P.steps.map(x=>({t:x.s.title||'',min:Math.round(x.work+x.tv)}))}})};
