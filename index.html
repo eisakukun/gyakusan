@@ -150,6 +150,17 @@ h2:first-child{margin-top:6px}
 .tick time{width:52px;flex-shrink:0;font-variant-numeric:tabular-nums}
 .tick span{white-space:nowrap}
 .tick i{flex:1;border-top:1px dashed #3a4654}
+.tl [data-t]{cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.tli.msel:before{background:#fff!important;box-shadow:0 0 0 4px rgba(106,169,255,.55);transform:scale(1.25)}
+.tli.msel time,.tick.msel time{color:#fff!important}
+.tick.msel:before{height:3px;width:10px;left:-15px;background:#fff}
+.tli.mbet>div{box-shadow:inset 0 0 0 1px rgba(106,169,255,.45)}
+.tick.mbet{color:var(--acc)}
+#mbar{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;z-index:98;background:#223247;border:1px solid #6aa9ff;
+  color:#e8edf3;border-radius:14px;padding:10px 12px 10px 14px;font-size:14px;display:flex;align-items:center;gap:8px;
+  max-width:92%;box-shadow:0 6px 24px rgba(0,0,0,.4);white-space:nowrap}
+#mbar big{font-size:20px;font-weight:800;color:#9cc7ff;margin-left:4px}
+#mbar button{margin-left:8px;background:transparent;border:1px solid #3f5673;color:#9fb3c8;border-radius:8px;width:28px;height:26px;padding:0}
 .tli.in:before{left:-38px}
 
 /* forms */
@@ -1345,11 +1356,11 @@ function renderNow(P){
   const step=(endT-P.now)/3600000>12?180:60;
   let tickT=new Date(P.now); tickT.setMinutes(0,0,0); tickT=plus(tickT,60);
   if(step===180)while(tickT.getHours()%3)tickT=plus(tickT,60);
-  const tick=d=>'<div class="tick"><time>'+hmT(d)+'</time><span>あと '+dur((d-P.now)/60000)+'</span><i></i></div>';
+  const tick=d=>'<div class="tick" data-t="'+(+d)+'"><time>'+hmT(d)+'</time><span>あと '+dur((d-P.now)/60000)+'</span><i></i></div>';
   const tlx=(d,t,x,c)=>{let o='';
     const soft=/\bsf\b/.test(c);   /* 未確定は薄いので、同じ時刻でも刻みは出す */
     while(tickT<=d){if(+tickT!==+d||soft)o+=tick(tickT);tickT=plus(tickT,step)}
-    return o+tli(t,x,c)};
+    return o+tli(t,x,c).replace('<div class="tli','<div data-t="'+(+d)+'" class="tli')};
   h+=tlx(c,hmT(c),'いま','now');
   P.steps.forEach(st=>{
     if(st.tv){c=plus(c,st.tv);h+=tlx(c,hmT(c),'<span class="mvx">'+esc(st.s.title)+' 着</span>（'
@@ -1418,7 +1429,44 @@ function renderNow(P){
   h+='<div class="tiny" style="padding:4px 4px 20px">※ やることの時間は入力に +'+(S.fudge||0)
     +'% した数字。移動は住所どうしの直線距離 +'+(S.detour||0)+'% を行きかたの速さで割った目安。</div>';
   el.innerHTML=h;
+  applyMeasure();
 }
+/* ================= 2つの丸のあいだを測る =================
+   タップ→タップ、押したまま別の丸を押す（2本指）、押したまま別の丸までなぞって離す、のどれでも測れる。
+   描き直し（15秒ごと）があっても選んだ時刻は覚えておいて付け直す */
+let mA=null, mB=null, mDown=null, mSkipUp=0;
+function mRow(e){const r=e.target.closest&&e.target.closest('.tl [data-t]');return r?+r.dataset.t:null}
+function measure(a,b){mA=Math.min(a,b);mB=Math.max(a,b);applyMeasure()}
+function clearMeasure(){mA=mB=null;applyMeasure()}
+function applyMeasure(){
+  document.querySelectorAll('.tl [data-t]').forEach(r=>{const t=+r.dataset.t;
+    r.classList.toggle('msel',t===mA||t===mB);
+    r.classList.toggle('mbet',mA!==null&&mB!==null&&t>mA&&t<mB)});
+  let bar=document.getElementById('mbar');
+  if(mA===null){if(bar)bar.remove();return}
+  if(!bar){bar=document.createElement('div');bar.id='mbar';document.body.appendChild(bar)}
+  const A_=new Date(mA);
+  bar.innerHTML=mB===null
+    ? '⏱ <b>'+hmD(A_)+'</b> から　もう1つ丸を押すと、そこまでの時間が出る<button onclick="clearMeasure()">×</button>'
+    : '⏱ <b>'+hmD(A_)+'</b> → <b>'+hmD(new Date(mB))+'</b>　<big>'+dur((mB-mA)/60000)+'</big><button onclick="clearMeasure()">×</button>';
+}
+(function(){
+  const nb=document.getElementById('nowBody');
+  nb.addEventListener('pointerdown',e=>{const t=mRow(e); if(t===null)return;
+    if(mDown!==null&&mDown!==t){measure(mDown,t);mDown=null;mSkipUp=2;return}   /* 押したまま、もう1つ */
+    mDown=t;});
+  nb.addEventListener('pointerup',e=>{
+    if(mSkipUp){mSkipUp--;return}
+    if(mDown===null)return;
+    const t=mRow(e)??(()=>{const el=document.elementFromPoint(e.clientX,e.clientY);return el&&el.closest('.tl [data-t]')?+el.closest('.tl [data-t]').dataset.t:null})();
+    const d=mDown; mDown=null;
+    if(t!==null&&t!==d){measure(d,t);return}                                     /* なぞって離した */
+    if(mA===null||mB!==null){mA=d;mB=null;applyMeasure()}                         /* 1つ目 */
+    else if(d===mA)clearMeasure();
+    else measure(mA,d);                                                           /* 2つ目 */
+  });
+  nb.addEventListener('pointercancel',()=>{mDown=null});
+})();
 const tli=(t,x,c)=>'<div class="tli '+c+'"><time>'+t+'</time><div>'+x+'</div></div>';
 const shortAddr=a=>{const p=String(a).split(',');return p.length>2?p.slice(0,2).join(',').trim():String(a)};
 
@@ -1879,7 +1927,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-26-12';
+const APP_VERSION='2026-09-26-13';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
