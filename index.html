@@ -1197,12 +1197,14 @@ function renderSoft(P){
   const L=S.anchors.filter(a=>new Date(a.at)>P.now&&!(P.A&&a.id===P.A.id))
     .sort((x,y)=>new Date(x.at)-new Date(y.at));
   if(!L.length)return '';
+  let prev=P.A?P.A.d:null;   /* ひとつ前の確定の約束。そこから何時間あるかを添える */
   return '<h2>このあとの予定</h2>'+L.map(a=>{const d=new Date(a.at);
     if(!a.soft){
       const lv=anchorLeaveAt(a);
+      const gap=prev?'（前の予定から '+dur((d-prev)/60000)+'）':''; prev=d;
       return '<div class="card upc" onclick="editAnchor(\''+a.id+'\')"><div class="sh"><b>⚑ '+hmD(d,P.now)+'</b> '+esc(a.title)
         +'<span class="r">あと '+dur((d-P.now)/60000)+'</span></div>'
-        +'<div class="si">'+(lv?'🚶 '+hmD(lv,P.now)+' に出る':(hasPlace(a)?'🚶 移動時間まだ':'場所なし'))+'</div></div>';
+        +'<div class="si">'+(lv?'🚶 '+hmD(lv,P.now)+' に出る':(hasPlace(a)?'🚶 移動時間まだ':'場所なし'))+gap+'</div></div>';
     }
     return '<div class="soft"><div class="sh"><span class="ring">◌</span><b>'+hmD(d,P.now)+'</b> '+esc(a.title)
       +'<i>'+dur(a.softMin||60)+'とみて</i></div>'
@@ -1803,7 +1805,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-26-6';
+const APP_VERSION='2026-09-26-7';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
