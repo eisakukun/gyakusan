@@ -124,6 +124,13 @@ h2:first-child{margin-top:6px}
 .tli time{font-variant-numeric:tabular-nums;color:var(--dim);width:52px;flex-shrink:0;font-weight:600}
 .tli.k time,.tli.f time{color:var(--tx)}
 .tli .mvx{color:var(--acc)}
+/* 次の約束より後ろの続き。確定は薄い赤、未確定は点線の輪で「置いてあるだけ」 */
+.tli.f2:before{background:#b85a5a}
+.tli.f2 time{color:var(--tx)}
+.tli.sf{opacity:.75}
+.tli.sf:before{background:transparent;border:2px dashed var(--dim)}
+.tli.sf div{color:var(--dim)}
+.tli.gap div{color:var(--dim)}
 
 /* forms */
 input,select,button,textarea{font-family:inherit;font-size:16px}
@@ -1316,6 +1323,23 @@ function renderNow(P){
     h+=tli(hmT(c),'着'+(P.buffer?'（余裕'+dur(P.buffer)+'）':''),'');
   }else if(P.buffer)h+=tli(hmT(c),'余裕 '+dur(P.buffer),'');
   h+=tli(hmT(A.d),'⚑ '+esc(A.title),'f');
+  /* そのあとの約束も続けて描く。間は「空き」、未確定は点線。
+     次の約束より後ろは逆算していない（移動が分かれば出発時刻だけ添える） */
+  let prevT=A.d;
+  S.anchors.filter(a=>a.id!==A.id&&new Date(a.at)>A.d)
+    .sort((x,y)=>new Date(x.at)-new Date(y.at)).forEach(a=>{
+      const d=new Date(a.at);
+      if(a.soft){
+        h+=tli(hmT(d)+'–'+hmT(plus(d,a.softMin||60)),'◌ '+esc(a.title)+'（未確定・'+dur(a.softMin||60)+'とみて）','sf');
+        return;
+      }
+      const lv=anchorLeaveAt(a);
+      const until=(lv&&lv>prevT)?lv:d;
+      if(until>prevT)h+=tli(hmT(prevT)+'–'+hmT(until),'空き '+dur((until-prevT)/60000),'gap');
+      if(lv&&lv>prevT)h+=tli(hmT(lv),'🚶 '+esc(a.title)+'へ出発','k');
+      h+=tli(hmT(d),'⚑ '+esc(a.title),'f2');
+      prevT=d;
+    });
   h+='</div></div>';
 
   if(!hasPlace(A))
@@ -1805,7 +1829,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-26-7';
+const APP_VERSION='2026-09-26-8';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
