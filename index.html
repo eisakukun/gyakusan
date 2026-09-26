@@ -150,6 +150,15 @@ h2:first-child{margin-top:6px}
 .tick time{width:52px;flex-shrink:0;font-variant-numeric:tabular-nums}
 .tick span{white-space:nowrap}
 .tick i{flex:1;border-top:1px dashed #3a4654}
+.hmore{display:block;width:100%;margin-top:12px;background:transparent;border:1px dashed #33414f;color:var(--dim);
+  border-radius:12px;padding:8px 0;font-size:13px}
+.hchain{margin-top:10px;border-left:2px solid #2f3b48;padding-left:12px;display:flex;flex-direction:column;gap:4px}
+.hc{font-size:14px;padding:5px 10px;border-radius:10px;display:flex;align-items:baseline;gap:6px}
+.hc .r{margin-left:auto;color:var(--dim);font-size:12px;font-weight:400;white-space:nowrap}
+.hc.end{background:rgba(255,107,107,.08);border:1px solid #4d2c30;color:#ffd9d9;font-weight:600}
+.hc.gap{color:var(--ok);font-size:13px;padding:2px 10px}
+.hc.ng{color:var(--warn);font-size:13px;padding:2px 10px}
+.hc.sf{color:var(--dim);border:1px dashed #3a4654;font-size:13px}
 .jobc{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
 .jobc .jt{font-size:12px;color:#ffd08a;margin-right:2px}
 .jobc button{background:transparent;border:1px solid #4a3f2a;color:#e6c894;border-radius:99px;padding:3px 10px;font-size:12px}
@@ -1321,6 +1330,29 @@ function softFix(id){const a=S.anchors.find(x=>x.id===id);if(!a)return;
 function softShift(id,m){const a=S.anchors.find(x=>x.id===id);if(!a)return;
   const d=plus(new Date(a.at),m);a.at=ymd(d)+'T'+hm(d);save();render();toast('◌「'+a.title+'」を '+hm(d)+' にずらした')}
 
+/* 次の約束のカードの下の「続き」。そのあとの流れを 空き→約束→空き… でつなげて見せる。
+   開け閉めはこの端末だけで覚える */
+let heroOpen=false; try{heroOpen=localStorage.getItem('gyakusan.heroOpen')==='1'}catch(e){}
+function toggleHero(){heroOpen=!heroOpen;try{localStorage.setItem('gyakusan.heroOpen',heroOpen?'1':'0')}catch(e){};render()}
+function heroMore(P){
+  const A=P.A; if(!A)return '';
+  const rest=S.anchors.filter(a=>a.id!==A.id&&new Date(a.at)>A.d).sort((x,y)=>new Date(x.at)-new Date(y.at));
+  if(!rest.length)return '';
+  let h='<button class="hmore" onclick="toggleHero()">'+(heroOpen?'▲ 続きをしまう':'▼ 続きを見る（このあと '+rest.length+'件）')+'</button>';
+  if(!heroOpen)return h;
+  h+='<div class="hchain">';
+  let prev=jobEnd(A);
+  h+='<div class="hc end">⚑ '+hm(A.d)+(A.job?'–'+hm(jobEnd(A)):'')+' '+esc(A.title)+(A.job?jbTag(A):'')+'</div>';
+  rest.forEach(a=>{const d=new Date(a.at);
+    if(a.soft){h+='<div class="hc sf">◌ '+hm(d)+' '+esc(a.title)+'（未確定）</div>';return}
+    if(d>prev)h+='<div class="hc gap">空き '+dur((d-prev)/60000)+'</div>';
+    else if(d<prev)h+='<div class="hc ng">⚠ 前の予定と '+dur((prev-d)/60000)+' かぶっている</div>';
+    h+='<div class="hc end">⚑ '+hm(d)+(a.job?'–'+hm(jobEnd(a)):'')+' '+esc(a.title)+(a.job?jbTag(a):'')
+      +'<span class="r">あと '+dur((d-P.now)/60000)+'</span></div>';
+    prev=jobEnd(a);
+  });
+  return h+'</div>';
+}
 function renderNow(P){
   const el=document.getElementById('nowBody'); let h='';
   if(!P.A){
@@ -1382,7 +1414,7 @@ function renderNow(P){
   h+='<div class="lr tot"><span>'+esc(A.title)+'（'+hm(A.d)+'）まで</span><b>あと '
     +dur(P.untilAnchor)+'</b></div></div>'
     +'<div class="bar"><i style="width:'+Math.max(0,Math.min(100,P.slack/Math.max(1,P.untilAnchor)*100))
-    +'%;background:'+(late?'var(--ng)':'var(--ok)')+'"></i></div>'+jobChips(A)+'</div>';
+    +'%;background:'+(late?'var(--ng)':'var(--ok)')+'"></i></div>'+jobChips(A)+heroMore(P)+'</div>';
 
   h+=renderSoft(P);
   if(P.steps.length){
@@ -2005,7 +2037,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-26-15';
+const APP_VERSION='2026-09-26-16';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
