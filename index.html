@@ -128,12 +128,24 @@ h2:first-child{margin-top:6px}
 .tli.k time,.tli.f time{color:var(--tx)}
 .tli .mvx{color:var(--acc)}
 /* 次の約束より後ろの続き。確定は薄い赤、未確定は点線の輪で「置いてあるだけ」 */
-.tli.f2:before{background:#b85a5a}
-.tli.f2 time{color:var(--tx)}
-.tli.sf{opacity:.75}
+.tli{align-items:center}
+.tli.f{flex-direction:row;gap:12px}   /* フォーム用の .f（縦並び）がかぶるので戻す */
+.tli>div{flex:1;border:1px solid var(--line);border-radius:10px;padding:6px 10px;background:#161b21}
+.tli.now>div{border-color:#6aa9ff;background:rgba(106,169,255,.14);color:#cfe2ff;font-weight:700}
+.tli.now:before{background:var(--acc)}
+.tli.now time{color:var(--acc)}
+.tli.free>div{border-color:#2d5a47;background:rgba(61,220,151,.09);color:var(--ok);font-weight:600}
+.tli.free:before{background:var(--ok)}
+.tli.buf>div{border-color:#333c47;background:#1a1f26;color:var(--dim)}
+.tli.f>div{border-color:#6b3438;background:rgba(255,107,107,.10);color:#ffd9d9;font-weight:700}
+.tli.k>div{border-color:#6b5230;background:rgba(255,180,84,.10);color:#ffe0b3}
+.tli.mv>div{border-color:#2f4a6b;background:rgba(106,169,255,.07)}
+.tli.sl>div{border-color:#4a3f6b;background:rgba(185,163,255,.08);color:#d9ceff}
+.tli.sf{opacity:.8}
 .tli.sf:before{background:transparent;border:2px dashed var(--dim)}
-.tli.sf div{color:var(--dim)}
-.tli.gap div{color:var(--dim)}
+.tli.sf>div{border-style:dashed;border-color:#4a5563;background:transparent;color:var(--dim)}
+.tli.in{margin-left:22px}
+.tli.in:before{left:-38px}
 
 /* forms */
 input,select,button,textarea{font-family:inherit;font-size:16px}
@@ -1322,7 +1334,7 @@ function renderNow(P){
   h+='<h2>逆算タイムライン</h2><div class="card"><div class="tl">';
   let c=new Date(P.now);
   const hmT=d=>hmD(d,P.now);   /* 日が変わった時刻には日付を添える */
-  h+=tli(hmT(c),'いま','');
+  h+=tli(hmT(c),'いま','now');
   P.steps.forEach(st=>{
     if(st.tv){c=plus(c,st.tv);h+=tli(hmT(c),'<span class="mvx">'+esc(st.s.title)+' 着</span>（'
       +(st.km!=null?st.km.toFixed(1)+'km・':'')+'移動'+dur(st.tv)+'）','mv')}
@@ -1334,33 +1346,34 @@ function renderNow(P){
     /* 空きは寝る時刻まで。2晩以上なら、その間の夜の睡眠もこの区間に入っている */
     const gap=Math.max(0,P.slack)+(P.nights-1)*P.sleepPer;
     if(gap>0){h+=tli(hmT(c)+'–'+hmT(plus(c,gap)),'空き '+dur(Math.max(0,P.slack))
-      +(P.nights>1?'<span class="mvx" style="color:#b9a3ff">（ほかに睡眠 '+(P.nights-1)+'晩ぶん）</span>':''),'');c=plus(c,gap)}
+      +(P.nights>1?'<span class="mvx" style="color:#b9a3ff">（ほかに睡眠 '+(P.nights-1)+'晩ぶん）</span>':''),'free');c=plus(c,gap)}
     h+=tli(hmT(c),'🛏 寝る（遅くとも）','sl'); c=plus(c,P.sleepMin);
     h+=tli(hmT(c),'⏰ 起きる'+(P.sleepBuf?'（支度・余裕 '+dur(P.sleepBuf)+'）':''),'sl'); c=plus(c,P.sleepBuf);
   }
-  else if(P.slack>0){h+=tli(hmT(c)+'–'+hmT(plus(c,P.slack)),'空き '+dur(P.slack),'');c=plus(c,P.slack)}
+  else if(P.slack>0){h+=tli(hmT(c)+'–'+hmT(plus(c,P.slack)),'空き '+dur(P.slack),'free');c=plus(c,P.slack)}
   if(P.toAnchor){
     h+=tli(hmT(c),'🚶 '+esc(A.title)+'へ出発（'+(P.anchorKm!=null?P.anchorKm.toFixed(1)+'km・':'')+dur(P.toAnchor)+'）','k');c=plus(c,P.toAnchor);
-    h+=tli(hmT(c),'着'+(P.buffer?'（余裕'+dur(P.buffer)+'）':''),'');
-  }else if(P.buffer)h+=tli(hmT(c),'余裕 '+dur(P.buffer),'');
+    h+=tli(hmT(c),'着'+(P.buffer?'（余裕'+dur(P.buffer)+'）':''),'buf');
+  }else if(P.buffer)h+=tli(hmT(c),'余裕 '+dur(P.buffer),'buf');
   h+=tli(hmT(A.d),'⚑ '+esc(A.title),'f');
   /* そのあとの約束も続けて描く。間は「空き」、未確定は点線。
      次の約束より後ろは逆算していない（移動が分かれば出発時刻だけ添える） */
   let prevT=A.d;
-  S.anchors.filter(a=>a.id!==A.id&&new Date(a.at)>A.d)
-    .sort((x,y)=>new Date(x.at)-new Date(y.at)).forEach(a=>{
-      const d=new Date(a.at);
-      if(a.soft){
-        h+=tli(hmT(d)+'–'+hmT(plus(d,a.softMin||60)),'◌ '+esc(a.title)+'（未確定・'+dur(a.softMin||60)+'とみて）','sf');
-        return;
-      }
-      const lv=anchorLeaveAt(a);
-      const until=(lv&&lv>prevT)?lv:d;
-      if(until>prevT)h+=tli(hmT(prevT)+'–'+hmT(until),'空き '+dur((until-prevT)/60000),'gap');
-      if(lv&&lv>prevT)h+=tli(hmT(lv),'🚶 '+esc(a.title)+'へ出発','k');
-      h+=tli(hmT(d),'⚑ '+esc(a.title),'f2');
-      prevT=d;
-    });
+  const rest=S.anchors.filter(a=>a.id!==A.id&&new Date(a.at)>A.d).sort((x,y)=>new Date(x.at)-new Date(y.at));
+  const softs=rest.filter(a=>a.soft), firms=rest.filter(a=>!a.soft);
+  const softIn=(from,to)=>softs.filter(a=>{const d=new Date(a.at);return d>=from&&(!to||d<to)})
+    .map(a=>{const d=new Date(a.at);
+      return tli(hmT(d)+'–'+hmT(plus(d,a.softMin||60)),'◌ '+esc(a.title)+'（未確定・'+dur(a.softMin||60)+'とみて）','sf in')}).join('');
+  firms.forEach(a=>{
+    const d=new Date(a.at), lv=anchorLeaveAt(a);
+    const until=(lv&&lv>prevT)?lv:d;
+    if(until>prevT)h+=tli(hmT(prevT)+'–'+hmT(until),'空き '+dur((until-prevT)/60000),'free');
+    h+=softIn(prevT,d);                         /* この空きの中にある未確定 */
+    if(lv&&lv>prevT)h+=tli(hmT(lv),'🚶 '+esc(a.title)+'へ出発','k');
+    h+=tli(hmT(d),'⚑ '+esc(a.title),'f');
+    prevT=d;
+  });
+  h+=softIn(prevT,null);                        /* 最後の約束より後ろの未確定 */
   h+='</div></div>';
 
   if(!hasPlace(A))
@@ -1850,7 +1863,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-26-10';
+const APP_VERSION='2026-09-26-11';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
