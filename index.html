@@ -38,6 +38,9 @@ h2:first-child{margin-top:6px}
 .upc .sh{font-size:14px;display:flex;gap:6px;align-items:baseline}
 .upc .sh .r{margin-left:auto;color:var(--dim);font-size:13px;white-space:nowrap}
 .upc .si{font-size:12px;color:var(--dim);margin-top:3px}
+.upc .x{background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:8px;
+  width:28px;height:26px;padding:0;font-size:15px;line-height:1;margin-left:6px;flex-shrink:0;align-self:center}
+.upc .x:hover{color:var(--ng);border-color:var(--ng)}
 .qa input{width:100%;box-sizing:border-box}
 .qa .tiny{padding:4px 4px 0;min-height:19px}
 .qa .tiny.ok{color:var(--acc)}
@@ -1210,7 +1213,8 @@ function renderSoft(P){
       const lv=anchorLeaveAt(a);
       const gap=prev?'（前の予定から '+dur((d-prev)/60000)+'）':''; prev=d;
       return '<div class="card upc" onclick="editAnchor(\''+a.id+'\')"><div class="sh"><b>⚑ '+hmD(d,P.now)+'</b> '+esc(a.title)
-        +'<span class="r">あと '+dur((d-P.now)/60000)+'</span></div>'
+        +'<span class="r">あと '+dur((d-P.now)/60000)+'</span>'
+        +'<button class="x" title="この予定を消す" onclick="event.stopPropagation();delQuick(\''+a.id+'\')">×</button></div>'
         +'<div class="si">'+(lv?'🚶 '+hmD(lv,P.now)+' に出る':(hasPlace(a)?'🚶 移動時間まだ':'場所なし'))+gap+'</div></div>';
     }
     return '<div class="soft"><div class="sh"><span class="ring">◌</span><b>'+hmD(d,P.now)+'</b> '+esc(a.title)
@@ -1218,7 +1222,24 @@ function renderSoft(P){
       +'<div class="si">'+esc(softImpact(a,P))+'</div>'
       +'<div class="sb"><button onclick="softFix(\''+a.id+'\')">確定にする</button>'
       +'<button onclick="softShift(\''+a.id+'\',30)">30分ずらす</button>'
-      +'<button onclick="delAnchor(\''+a.id+'\')">消す</button></div></div>'}).join('');
+      +'<button onclick="delQuick(\''+a.id+'\')">消す</button></div></div>'}).join('');
+}
+/* すぐ消して、5秒だけ「元に戻す」を出す（確認の画面を挟まない。Macの小窓では confirm が出ないこともある） */
+let _undo=null;
+function delQuick(id){
+  const i=S.anchors.findIndex(x=>x.id===id); if(i<0)return;
+  const a=S.anchors[i];
+  S.anchors.splice(i,1); save(); render();
+  _undo={a,i};
+  let t=document.getElementById('toast');
+  toast('「'+a.title+'」を消した');
+  t=document.getElementById('toast');
+  const b=document.createElement('button');
+  b.textContent='元に戻す';
+  b.style.cssText='margin-left:10px;background:transparent;border:1px solid #6aa9ff;color:#6aa9ff;border-radius:99px;padding:3px 10px;font-size:12px';
+  b.onclick=()=>{if(!_undo)return;S.anchors.splice(Math.min(_undo.i,S.anchors.length),0,_undo.a);_undo=null;save();render();toast('「'+a.title+'」を戻した')};
+  t.appendChild(b);
+  clearTimeout(t._x);t._x=setTimeout(()=>{t.style.opacity='0';_undo=null},5000);
 }
 function softFix(id){const a=S.anchors.find(x=>x.id===id);if(!a)return;
   a.soft=false;save();render();toast('「'+a.title+'」を確定にした（ここから逆算に入る）')}
@@ -1829,7 +1850,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-26-8';
+const APP_VERSION='2026-09-26-10';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
