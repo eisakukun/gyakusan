@@ -166,6 +166,13 @@ h2:first-child{margin-top:6px}
 .tick.msel:before{height:3px;width:10px;left:-15px;background:#fff}
 .tli.mbet>div{box-shadow:inset 0 0 0 1px rgba(106,169,255,.45)}
 .tick.mbet{color:var(--acc)}
+#mline{position:absolute;left:-12px;width:3px;background:#6aa9ff;border-radius:2px;box-shadow:0 0 8px rgba(106,169,255,.6);pointer-events:none;z-index:1}
+#mmid{position:absolute;right:8px;transform:translateY(-50%);z-index:3;text-align:center;
+  background:rgba(20,30,44,.92);border:1px solid #6aa9ff;border-radius:16px;padding:10px 38px 10px 16px;
+  box-shadow:0 8px 28px rgba(0,0,0,.5);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+#mmid big{display:block;font-size:34px;font-weight:800;color:#9cc7ff;line-height:1.1;font-variant-numeric:tabular-nums}
+#mmid small{display:block;font-size:11px;color:#9fb3c8;margin-top:2px}
+#mmid button{position:absolute;top:6px;right:6px;background:transparent;border:1px solid #3f5673;color:#9fb3c8;border-radius:8px;width:24px;height:22px;padding:0;font-size:12px}
 #mbar{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;z-index:98;background:#223247;border:1px solid #6aa9ff;
   color:#e8edf3;border-radius:14px;padding:10px 12px 10px 14px;font-size:14px;display:flex;align-items:center;gap:8px;
   max-width:92%;box-shadow:0 6px 24px rgba(0,0,0,.4);white-space:nowrap}
@@ -1492,18 +1499,33 @@ function applyMeasure(){
   document.querySelectorAll('.tl [data-t]').forEach(r=>{const t=+r.dataset.t;
     r.classList.toggle('msel',t===mA||t===mB);
     r.classList.toggle('mbet',mA!==null&&mB!==null&&t>mA&&t<mB)});
+  document.querySelectorAll('#mmid,#mline').forEach(x=>x.remove());
   let bar=document.getElementById('mbar');
   if(mA===null){if(bar)bar.remove();return}
-  if(!bar){bar=document.createElement('div');bar.id='mbar';document.body.appendChild(bar)}
   const A_=new Date(mA);
-  bar.innerHTML=mB===null
-    ? '⏱ <b>'+hmD(A_)+'</b> から　もう1つ丸を押すと、そこまでの時間が出る<button onclick="clearMeasure()">×</button>'
-    : (()=>{const tot=(mB-mA)/60000, w=workBetween(mA,mB);
-        return '⏱ <b>'+hmD(A_)+'</b> → <b>'+hmD(new Date(mB))+'</b>　'
-          +(w.min>0
-            ? '<span class="mt">'+dur(tot)+' − 💼'+esc(w.names)+' '+dur(w.min)+' ＝</span><big>'+dur(tot-w.min)+'</big>'
-            : '<big>'+dur(tot)+'</big>')
-          +'<button onclick="clearMeasure()">×</button>'})();
+  if(mB===null){   /* 1つ目だけ：下に小さく案内 */
+    if(!bar){bar=document.createElement('div');bar.id='mbar';document.body.appendChild(bar)}
+    bar.innerHTML='⏱ <b>'+hmD(A_)+'</b> から　もう1つ丸を押すと、そこまでの時間が出る<button onclick="clearMeasure()">×</button>';
+    return;
+  }
+  if(bar)bar.remove();
+  /* 2つ選んだ：丸と丸を線でつなぎ、そのまん中に時間を大きく */
+  const tl=document.querySelector('.tl'); if(!tl)return;
+  const rs=[...tl.querySelectorAll('[data-t]')];
+  const ra=rs.find(r=>+r.dataset.t===mA), rb=rs.slice().reverse().find(r=>+r.dataset.t===mB);
+  if(!ra||!rb)return;
+  const dotY=r=>r.offsetTop+(r.classList.contains('tick')?r.offsetHeight/2:19);
+  const y1=dotY(ra), y2=dotY(rb);
+  const line=document.createElement('div'); line.id='mline';
+  line.style.top=y1+'px'; line.style.height=Math.max(0,y2-y1)+'px'; tl.appendChild(line);
+  const tot=(mB-mA)/60000, w=workBetween(mA,mB);
+  const box=document.createElement('div'); box.id='mmid';
+  box.style.top=((y1+y2)/2)+'px';
+  box.innerHTML='<big>'+dur(tot-w.min)+'</big>'
+    +(w.min>0?'<small>'+dur(tot)+' − 💼'+esc(w.names)+' '+dur(w.min)+'</small>':'')
+    +'<small>'+hmD(A_)+' → '+hmD(new Date(mB))+'</small>'
+    +'<button onclick="event.stopPropagation();clearMeasure()">×</button>';
+  tl.appendChild(box);
 }
 (function(){
   const nb=document.getElementById('nowBody');
@@ -1983,7 +2005,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-26-14';
+const APP_VERSION='2026-09-26-15';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
