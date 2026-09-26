@@ -159,6 +159,13 @@ h2:first-child{margin-top:6px}
 .hc.gap{color:var(--ok);font-size:13px;padding:2px 10px}
 .hc.ng{color:var(--warn);font-size:13px;padding:2px 10px}
 .hc.sf{color:var(--dim);border:1px dashed #3a4654;font-size:13px}
+.tlh{display:flex;align-items:center;gap:8px}
+.seg{margin-left:auto;display:inline-flex;border:1px solid var(--line);border-radius:99px;overflow:hidden}
+.seg button{background:transparent;border:0;color:var(--dim);font-size:12px;padding:4px 12px}
+.seg button.on{background:#2c3947;color:var(--tx);font-weight:700}
+.tl.simple .tli{padding:5px 0}
+.tl.simple .tli.free time{visibility:hidden}
+.tl.simple .tli.free>div{padding:3px 10px;font-size:13px}
 .jobc{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
 .jobc .jt{font-size:12px;color:#ffd08a;margin-right:2px}
 .jobc button{background:transparent;border:1px solid #4a3f2a;color:#e6c894;border-radius:99px;padding:3px 10px;font-size:12px}
@@ -1353,6 +1360,23 @@ function heroMore(P){
   });
   return h+'</div>';
 }
+/* タイムラインのシンプル表示：いま・空き・約束だけ（余裕・出発・刻み・未確定は出さない）。端末ごとに覚える */
+let tlSimple=true; try{tlSimple=localStorage.getItem('gyakusan.tlSimple')!=='0'}catch(e){}
+function setTL(v){tlSimple=v;try{localStorage.setItem('gyakusan.tlSimple',v?'1':'0')}catch(e){};render()}
+function simpleTL(P){
+  const A=P.A, row=(d,t,x,c)=>tli(t,x,c).replace('<div class="tli','<div data-t="'+(+d)+'" class="tli');
+  const hmT=d=>hmD(d,P.now);
+  let h='<h2>逆算タイムライン</h2><div class="card"><div class="tl simple">';
+  h+=row(P.now,hmT(P.now),'いま','now');
+  let prev=P.now;
+  const firms=S.anchors.filter(a=>!a.soft&&new Date(a.at)>=A.d).sort((x,y)=>new Date(x.at)-new Date(y.at));
+  firms.forEach(a=>{const d=new Date(a.at), e=jobEnd(a);
+    if(d>prev)h+=row(prev,'','空き '+dur((d-prev)/60000),'free');
+    h+=row(d,hmT(d)+(a.job?'–'+hmT(e):''),'⚑ '+esc(a.title)+(a.job?jbTag(a):''),'f');
+    prev=e>prev?e:prev;
+  });
+  return h+'</div></div>';
+}
 function renderNow(P){
   const el=document.getElementById('nowBody'); let h='';
   if(!P.A){
@@ -1426,6 +1450,7 @@ function renderNow(P){
   }
 
   /* タイムライン */
+  const tlStart=h.length;
   h+='<h2>逆算タイムライン</h2><div class="card"><div class="tl">';
   let c=new Date(P.now);
   const hmT=d=>hmD(d,P.now);   /* 日が変わった時刻には日付を添える */
@@ -1483,6 +1508,11 @@ function renderNow(P){
   });
   h+=softIn(prevT,null);                        /* 最後の約束より後ろの未確定 */
   h+='</div></div>';
+  /* 見出しに切り替え。シンプルなら 描いたものを差し替える */
+  h=h.slice(0,tlStart)+(tlSimple?simpleTL(P):h.slice(tlStart))
+    .replace('<h2>逆算タイムライン</h2>','<h2 class="tlh">逆算タイムライン'
+      +'<span class="seg"><button class="'+(tlSimple?'on':'')+'" onclick="setTL(true)">シンプル</button>'
+      +'<button class="'+(tlSimple?'':'on')+'" onclick="setTL(false)">くわしく</button></span></h2>');
 
   if(!hasPlace(A))
     h+='<div class="card" style="border-color:#4a3a22;background:#241d13"><div class="muted">'
@@ -2037,7 +2067,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-26-16';
+const APP_VERSION='2026-09-26-17';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
