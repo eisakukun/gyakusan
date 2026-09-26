@@ -1750,7 +1750,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-26-2';
+const APP_VERSION='2026-09-26-3';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
@@ -1777,14 +1777,22 @@ function qaParse(raw){
   if(!d){const [hh,mm]=P.time.split(':').map(Number);
     const x=new Date(now);x.setHours(hh,mm,0,0);if(x<=now)x.setDate(x.getDate()+1);d=ymd(x)}
   const at=d+'T'+P.time;
-  return {P,ok:new Date(at)>now,past:new Date(at)<=now,at,title:P.title||'予定'};
+  /* 「◯◯で」から推測しただけの場所は、題名から切らない（「あとで消す」「カフェで作業」を壊さない）。
+     題名は、日時の部分だけを取り除いた元の文にする */
+  let title=P.title;
+  if(P.addrGuess){
+    let t=' '+Z2H(raw)+' ';
+    P.found.slice(1).forEach(f=>{t=t.replace(f,' ')});
+    title=t.replace(/\s+/g,' ').trim();
+  }
+  return {P,ok:new Date(at)>now,past:new Date(at)<=now,at,title:title||'予定'};
 }
 function qaInput(){
   const v=document.getElementById('qaT').value.trim(), h=document.getElementById('qaHint');
   if(!v){h.className='tiny';h.textContent='打って Enter。画面は「いま」のまま。';return}
   const Q=qaParse(v);
   if(Q.ok){h.className='tiny ok';
-    h.textContent='→ '+hmD(new Date(Q.at))+'「'+Q.title+'」'+(Q.P.addr?'　📍'+Q.P.addr:'')+'　Enterで入れる'}
+    h.textContent='→ '+hmD(new Date(Q.at))+'「'+Q.title+'」'+(Q.P.addr?'　📍'+Q.P.addr+(Q.P.addrGuess?'？':''):'')+'　Enterで入れる'}
   else{h.className='tiny ng';
     h.textContent=Q.past?'その時刻はもう過ぎている':'「いつ」が見つからない（例：15時／明日19時／30分後／金曜18時半）'}
 }
@@ -1804,7 +1812,12 @@ async function qaAdd(){
     try{const g=await geocode(A.addr);
       const a=S.anchors.find(x=>x.id===id);
       if(a&&g){a.lat=g.lat;a.lng=g.lng;save();render();toast('📍 '+A.addr+' の場所が分かった')}
-    }catch(e){toast('📍「'+A.addr+'」の場所は見つからなかった（予定タブで直せる）')}
+    }catch(e){
+      /* 推測の場所が外れたら黙って外す。はっきり書いた場所（駅・@など）なら知らせる */
+      const a=S.anchors.find(x=>x.id===id);
+      if(Q.P.addrGuess){if(a){a.addr='';save();render()}}
+      else toast('📍「'+A.addr+'」の場所は見つからなかった（予定タブで直せる）');
+    }
   }
 }
 
