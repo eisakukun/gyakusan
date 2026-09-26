@@ -1737,7 +1737,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-25-1';
+const APP_VERSION='2026-09-26-1';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
@@ -1760,6 +1760,10 @@ const SYNC_URL='https://script.google.com/macros/s/AKfycbxUeBgtZzO_O3waCGc4Qv830
 const SKEY='gyakusan.syncKey';
 const LOCAL_ONLY=['here','trial'];      /* 端末ごとに違ってよいもの（現在地・ひらめきの試し） */
 let syncKey=''; try{syncKey=localStorage.getItem(SKEY)||''}catch(e){}
+/* #sync=キー で開かれたら、そのキーを覚える（Macの右上の小窓はこれで開く）。# の後ろはサーバーに送られない */
+(function(){const m=location.hash.match(/sync=([\w-]+)/); if(!m)return;
+  if(m[1]!==syncKey){syncKey=m[1]; try{localStorage.setItem(SKEY,syncKey)}catch(e){}}
+  history.replaceState(null,'',location.pathname+location.search)})();
 let _pushT=null, _pulling=false;
 function setSync(m,err){const e=document.getElementById('syncMsg');
   if(e){e.textContent=(err?'⚠️ ':'✓ ')+m+'（'+hm(new Date())+'）';e.style.color=err?'#ff8a7a':''}}
