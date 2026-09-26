@@ -25,6 +25,15 @@ h2:first-child{margin-top:6px}
 .muted{color:var(--dim);font-size:13px}
 .tiny{color:var(--dim2);font-size:12px;line-height:1.6}
 .qa{margin-bottom:10px}
+/* 未確定（ずらせる予定）。計算には入れないので、点線・半透明で「置いてあるだけ」に見せる */
+.soft{border:1px dashed #3a4654;border-radius:14px;padding:10px 12px;margin-bottom:8px;opacity:.82}
+.soft .sh{font-size:14px;color:var(--tx)}
+.soft .sh .ring{color:var(--dim);margin-right:4px}
+.soft .sh i{font-style:normal;color:var(--dim2);font-size:12px;margin-left:6px}
+.soft .si{font-size:12px;color:var(--dim);margin:4px 0 8px}
+.soft .sb{display:flex;gap:6px}
+.soft .sb button{flex:1;background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:10px;padding:6px 0;font-size:13px}
+.acard.soft{border-style:dashed;opacity:.8}
 .qa input{width:100%;box-sizing:border-box}
 .qa .tiny{padding:4px 4px 0;min-height:19px}
 .qa .tiny.ok{color:var(--acc)}
@@ -981,7 +990,7 @@ function parseNL(raw,kind){
       /* --- 時刻 --- */
       let ap=null;
       eat(/(午前|午後|朝|昼|夕方|夜|深夜|晩)/,m=>{ap=m[1]});
-      eat(/(\d{1,2})\s*(?::|時)\s*(\d{1,2})?\s*分?\s*(半)?/,m=>{
+      eat(/(\d{1,2})\s*(?::|時)\s*(\d{1,2})?\s*分?\s*(半)?(?!間)\s*(?:から|〜|~)?/,m=>{
         let hh=+m[1], mm=m[3]?30:(m[2]!=null?+m[2]:0);
         if(hh>23||mm>59)return false;
         if(ap&&/午後|夕方|夜|晩/.test(ap)&&hh<12)hh+=12;
@@ -1014,7 +1023,7 @@ function nlpPreview(R,kind){
 /* forA を渡すと、その予定について計算する（同期の要約で2件目以降も出すため。ひらめきの試しは入れない） */
 function plan(forA){
   const now=new Date();
-  const up=S.anchors.map(a=>({...a,d:new Date(a.at)}))
+  const up=S.anchors.filter(a=>!a.soft).map(a=>({...a,d:new Date(a.at)}))
     .filter(a=>!isNaN(a.d)&&a.d>now).sort((x,y)=>x.d-y.d);
   const A=forA?{...forA,d:new Date(forA.at)}:(up[0]||null);
   if(!A)return {now,A:null,up};
@@ -1166,13 +1175,40 @@ function render(){
 }
 function syncField(id,v){const e=document.getElementById(id);if(e&&document.activeElement!==e)e.value=v}
 
+/* ================= 未確定（ずらせる予定） =================
+   確定した約束の逆算には入れない。「入れたらのこりがどうなるか」だけを添える。赤は使わない */
+function softList(P){
+  return S.anchors.filter(a=>a.soft&&new Date(a.at)>P.now).sort((x,y)=>new Date(x.at)-new Date(y.at));
+}
+function softImpact(a,P){
+  const d=new Date(a.at), m=a.softMin||60;
+  if(!P.A)return '入れると '+hm(d)+'–'+hm(plus(d,m))+' が埋まる';
+  if(d>=P.A.d)return '「'+P.A.title+'」のあと';
+  const after=P.slack-m;
+  return after>=0?'入れると のこり '+dur(P.slack)+' → '+dur(after):'入れると '+dur(-after)+' はみ出す';
+}
+function renderSoft(P){
+  const L=softList(P); if(!L.length)return '';
+  return '<h2>◌ ずらせる予定（未確定）</h2>'+L.map(a=>{const d=new Date(a.at);
+    return '<div class="soft"><div class="sh"><span class="ring">◌</span><b>'+hmD(d,P.now)+'</b> '+esc(a.title)
+      +'<i>'+dur(a.softMin||60)+'とみて</i></div>'
+      +'<div class="si">'+esc(softImpact(a,P))+'</div>'
+      +'<div class="sb"><button onclick="softFix(\''+a.id+'\')">確定にする</button>'
+      +'<button onclick="softShift(\''+a.id+'\',30)">30分ずらす</button>'
+      +'<button onclick="delAnchor(\''+a.id+'\')">消す</button></div></div>'}).join('');
+}
+function softFix(id){const a=S.anchors.find(x=>x.id===id);if(!a)return;
+  a.soft=false;save();render();toast('「'+a.title+'」を確定にした（ここから逆算に入る）')}
+function softShift(id,m){const a=S.anchors.find(x=>x.id===id);if(!a)return;
+  const d=plus(new Date(a.at),m);a.at=ymd(d)+'T'+hm(d);save();render();toast('◌「'+a.title+'」を '+hm(d)+' にずらした')}
+
 function renderNow(P){
   const el=document.getElementById('nowBody'); let h='';
   if(!P.A){
     h='<div class="hero"><div class="lbl">約束（動かせない予定）</div>'
       +'<div class="big" style="font-size:26px">まだ入ってない</div>'
-      +'<div class="sub">「予定」タブで1つ入れると、そこまで何時間あるかが出る。</div></div>';
-    el.innerHTML=h;return;
+      +'<div class="sub">上の欄に「19時 渋谷駅で打ち合わせ」のように打つと、そこまで何時間あるかが出る。</div></div>';
+    el.innerHTML=h+renderSoft(P);return;
   }
   const A=P.A, late=P.slack<0;
   if(S.trial)h+='<div class="trialbar">'
@@ -1229,6 +1265,7 @@ function renderNow(P){
     +'<div class="bar"><i style="width:'+Math.max(0,Math.min(100,P.slack/Math.max(1,P.untilAnchor)*100))
     +'%;background:'+(late?'var(--ng)':'var(--ok)')+'"></i></div></div>';
 
+  h+=renderSoft(P);
   if(P.steps.length){
     const st=P.steps[0];
     h+='<div class="nowtask"><div class="lbl">'+(st.tv?'まず これ に向かう':'まず これ だけやる')+'</div>'
@@ -1302,9 +1339,11 @@ function renderAnc(P){
   if(!list.length){el.innerHTML='<div class="empty">まだ無い。<br>「◯時にここに居ないといけない」を入れる。</div>';return}
   el.innerHTML=list.map(a=>{
     const d=new Date(a.at), past=d<P.now, isNext=P.A&&P.A.id===a.id;
-    let h='<div class="acard'+(past?' past':'')+(isNext?' next':'')+'">'
-      +'<div class="ahd"><div class="t">'+esc(a.title)+'</div>'
+    let h='<div class="acard'+(past?' past':'')+(isNext?' next':'')+(a.soft?' soft':'')+'">'
+      +'<div class="ahd"><div class="t">'+(a.soft?'◌ ':'')+esc(a.title)
+      +(a.soft?' <small style="color:var(--dim2)">未確定</small>':'')+'</div>'
       +'<div class="w">'+(d.getDate()!==P.now.getDate()?(d.getMonth()+1)+'/'+d.getDate()+' ':'')+hm(d)+'</div>'
+      +(a.soft?'<button class="dn" onclick="softFix(\''+a.id+'\')" title="確定にする">✓</button>':'')
       +'<button class="dn" onclick="askAlarm(\''+a.id+'\')" title="アラームを鳴らす">⏰</button>'
       +'<button class="dn" onclick="editAnchor(\''+a.id+'\')">✎</button>'
       +'<button class="del" onclick="delAnchor(\''+a.id+'\')">×</button></div>';
@@ -1750,7 +1789,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-26-4';
+const APP_VERSION='2026-09-26-5';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
@@ -1782,7 +1821,22 @@ function qaKey(e){
   if(e.isComposing||e.keyCode===229||qaIME)return;
   e.preventDefault(); qaAdd();
 }
+/* 「未確定」「かも」「？」が付いていたら、ずらせる予定（計算に入れない）。
+   「1時間」「90分」があれば、それを入れた時にかかる時間とみる（無ければ1時間） */
+const SOFT_RE=/\s*(未確定|かも|[?？])\s*/g;
 function qaParse(raw){
+  const soft=SOFT_RE.test(raw); SOFT_RE.lastIndex=0;
+  raw=raw.replace(SOFT_RE,' ');
+  let softMin=null;
+  if(soft){
+    const t=Z2H(raw);
+    const m=t.match(/(\d+)\s*時間\s*(半)?(?!後)/)||null, n=!m&&t.match(/(\d+)\s*分間?(?!後)/);
+    if(m){softMin=(+m[1])*60+(m[2]?30:0);raw=t.replace(m[0],' ')}
+    else if(n){softMin=+n[1];raw=t.replace(n[0],' ')}
+  }
+  const R=qaParse0(raw); R.soft=soft; R.softMin=softMin||60; return R;
+}
+function qaParse0(raw){
   const P=parseNL(raw,'when'), now=new Date();
   if(!P.time)return {P,ok:false};
   let d=P.date;
@@ -1804,7 +1858,8 @@ function qaInput(){
   if(!v){h.className='tiny';h.textContent='打って Enter。画面は「いま」のまま。';return}
   const Q=qaParse(v);
   if(Q.ok){h.className='tiny ok';
-    h.textContent='→ '+hmD(new Date(Q.at))+'「'+Q.title+'」'+(Q.P.addr?'　📍'+Q.P.addr+(Q.P.addrGuess?'？':''):'')+'　Enterで入れる'}
+    h.textContent='→ '+(Q.soft?'◌ ':'')+hmD(new Date(Q.at))+'「'+Q.title+'」'+(Q.P.addr?'　📍'+Q.P.addr+(Q.P.addrGuess?'？':''):'')
+      +(Q.soft?'　未確定・'+dur(Q.softMin)+'とみて（計算には入れない）':'')+'　Enterで入れる'}
   else{h.className='tiny ng';
     h.textContent=Q.past?'その時刻はもう過ぎている':'「いつ」が見つからない（例：15時／明日19時／30分後／金曜18時半）'}
 }
@@ -1815,12 +1870,13 @@ async function qaAdd(){
   const pl=Q.P.addr?findPlace(Q.P.addr):null;
   const id=uid();
   S.anchors.push({id,title:Q.title,at:Q.at,addr:A.addr,lat:A.lat,lng:A.lng,
-    mode:(pl&&pl.mode)||DEFMODE,travelMin:A.travelMin,subs:[]});
+    mode:(pl&&pl.mode)||DEFMODE,travelMin:A.travelMin,subs:[],
+    ...(Q.soft?{soft:true,softMin:Q.softMin}:{})});
   save(); el.value=''; qaInput(); render();
-  toast('「'+Q.title+'」を入れた（'+hmD(new Date(Q.at))+'）');
+  toast((Q.soft?'◌ 未確定で ':'')+'「'+Q.title+'」を入れた（'+hmD(new Date(Q.at))+'）');
   el.focus();
   /* 場所の名前だけ入った時は、裏で座標を探して移動時間を出す（見つからなくても予定は残る） */
-  if(A.addr&&A.lat==null){
+  if(A.addr&&A.lat==null&&!Q.soft){
     try{const g=await geocode(A.addr);
       const a=S.anchors.find(x=>x.id===id);
       if(a&&g){a.lat=g.lat;a.lng=g.lng;save();render();toast('📍 '+A.addr+' の場所が分かった')}
@@ -1855,9 +1911,11 @@ function setSyncKey(v){
 function sharedState(){const o={};for(const k in S)if(!LOCAL_ONLY.includes(k))o[k]=S[k];return o}
 function buildSummary(){
   const now=new Date();
-  const up=S.anchors.filter(a=>{const d=new Date(a.at);return !isNaN(d)&&d>now})
-    .sort((x,y)=>new Date(x.at)-new Date(y.at)).slice(0,3);
-  return {v:1,genAt:Date.now(),buffer:S.buffer||0,sleepOn:S.sleepOn!==false,
+  const fut=S.anchors.filter(a=>{const d=new Date(a.at);return !isNaN(d)&&d>now})
+    .sort((x,y)=>new Date(x.at)-new Date(y.at));
+  const up=fut.filter(a=>!a.soft).slice(0,3);
+  const soft=fut.filter(a=>a.soft).slice(0,3).map(a=>({title:a.title||'予定',at:new Date(a.at).getTime(),min:a.softMin||60}));
+  return {v:1,genAt:Date.now(),buffer:S.buffer||0,sleepOn:S.sleepOn!==false,soft,
     sleepPer:Math.round(((S.sleepH||0)+(S.sleepBufH||0))*60),
     items:up.map(a=>{const P=plan(a);const ok=hasPlace(a)&&!P.anchorUnknown;
       return {id:a.id,title:a.title||'予定',at:P.A.d.getTime(),hasPlace:hasPlace(a),
