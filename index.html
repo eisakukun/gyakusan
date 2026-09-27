@@ -162,6 +162,12 @@ html.mini .qa{padding:8px 10px!important}
 .tick time{width:52px;flex-shrink:0;font-variant-numeric:tabular-nums}
 .tick span{white-space:nowrap}
 .tick i{flex:1;border-top:1px dashed #3a4654}
+.idea{display:flex;align-items:center;gap:8px;border:1px solid #2f3b48;border-radius:12px;padding:8px 10px;margin-bottom:6px;background:#151a20}
+.idea .it{flex:1;min-width:0;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.idea .it i{font-style:normal;font-size:12px;color:var(--dim);margin-left:6px}
+.idea .ib{display:flex;gap:4px;flex-shrink:0}
+.idea .ib button{background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:8px;padding:4px 8px;font-size:12px}
+.idea .ib button.x{width:28px;padding:4px 0}
 .hmore{display:block;width:100%;margin-top:12px;background:transparent;border:1px dashed #33414f;color:var(--dim);
   border-radius:12px;padding:8px 0;font-size:13px}
 .hchain{margin-top:10px;border-left:2px solid #2f3b48;padding-left:12px;display:flex;flex-direction:column;gap:4px}
@@ -305,7 +311,7 @@ nav button.on{color:var(--acc)}
   <section class="pg on" id="pg-now">
     <div class="qa">
       <input type="text" id="qaT" autocomplete="off" enterkeyhint="done"
-        placeholder="＋ 思いついた予定をそのまま（例：明日15時 渋谷駅で打ち合わせ）"
+        placeholder="＋ 思いついたまま（明日15時 渋谷駅で打ち合わせ／時間未定なら 海 行きたい）"
         oninput="qaInput()" onkeydown="qaKey(event)">
       <div class="tiny" id="qaHint">打って Enter。画面は「いま」のまま。</div>
     </div>
@@ -568,7 +574,7 @@ const KEY='gyakusan.v2', OLDKEY='gyakusan.v1';
 const DEF={hereName:'家', here:null, buffer:10, fudge:20, detour:25, anchors:[], trial:null, places:[],
   sleepOn:true, sleepH:7, sleepBufH:1,
   alarmShortcut:'逆算アラーム', alarmAsk:true, alarmPayload:'time',
-  jobs:[{id:'massa',name:'マッサ',mins:[60,90,120],def:60}]};
+  jobs:[{id:'massa',name:'マッサ',mins:[60,90,120],def:60}], ideas:[]};
 let S=load();
 
 function load(){
@@ -1395,7 +1401,7 @@ function renderNow(P){
     h='<div class="hero"><div class="lbl">約束（動かせない予定）</div>'
       +'<div class="big" style="font-size:26px">まだ入ってない</div>'
       +'<div class="sub">上の欄に「19時 渋谷駅で打ち合わせ」のように打つと、そこまで何時間あるかが出る。</div></div>';
-    el.innerHTML=h+renderSoft(P);return;
+    el.innerHTML=h+renderSoft(P)+renderIdeas();return;
   }
   const A=P.A, late=P.slack<0;
   if(S.trial)h+='<div class="trialbar">'
@@ -1452,7 +1458,7 @@ function renderNow(P){
     +'<div class="bar"><i style="width:'+Math.max(0,Math.min(100,P.slack/Math.max(1,P.untilAnchor)*100))
     +'%;background:'+(late?'var(--ng)':'var(--ok)')+'"></i></div>'+jobChips(A)+heroMore(P)+'</div>';
 
-  h+=renderSoft(P);
+  h+=renderSoft(P)+renderIdeas();
   if(P.steps.length){
     const st=P.steps[0];
     h+='<div class="nowtask"><div class="lbl">'+(st.tv?'まず これ に向かう':'まず これ だけやる')+'</div>'
@@ -2079,7 +2085,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-27-1';
+const APP_VERSION='2026-09-27-2';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
@@ -2136,6 +2142,42 @@ function jobFromText(raw){
   const cand=m?(+m[1])*60+(m[2]?30:0):n?+n[1]:null;
   if(cand&&j.mins.includes(cand)){min=cand;cut=(m||n)[0]}
   return {name:j.name,min,cut};
+}
+
+/* ================= いつか箱（時間未定） =================
+   時刻が無い思いつきは、ここに貯める。長さ（1時間・90分）と場所（@・駅など）があれば覚えておく */
+function ideaParse(raw){
+  let t=' '+Z2H(raw)+' ', min=null;
+  const m=t.match(/(\d+)\s*時間\s*(半)?(?!後)/), n=!m&&t.match(/(\d+)\s*分間?(?!後)/);
+  if(m){min=(+m[1])*60+(m[2]?30:0);t=t.replace(m[0],' ')} else if(n){min=+n[1];t=t.replace(n[0],' ')}
+  const P=parseNL(t,'when');
+  let title=P.addrGuess?t.replace(/\s+/g,' ').trim():P.title;
+  return {title:title||raw.trim(),min,addr:P.addrGuess?'':(P.addr||'')};
+}
+function ideaFix(id){
+  const I=(S.ideas||[]).find(x=>x.id===id); if(!I)return;
+  const w=prompt('「'+I.title+'」はいつ？（例：明日15時／19時半／金曜18時）'); if(!w)return;
+  const Q=qaParse(w+' '+I.title); if(!Q.ok)return alert(Q.past?'その時刻はもう過ぎている':'「いつ」が読めなかった（例：明日15時）');
+  S.anchors.push({id:uid(),title:I.title,at:Q.at,addr:I.addr||'',lat:null,lng:null,mode:DEFMODE,travelMin:null,subs:[],
+    ...(Q.job?{job:Q.job}:{})});
+  S.ideas=S.ideas.filter(x=>x.id!==id); save(); render(); toast('「'+I.title+'」を '+hmD(new Date(Q.at))+' の予定にした');
+}
+function ideaTry(id){
+  const I=(S.ideas||[]).find(x=>x.id===id); if(!I)return;
+  S.trial={title:I.title,min:I.min||60,addr:I.addr||'',lat:null,lng:null,mode:DEFMODE,start:null};
+  save(); render(); showTab('now'); window.scrollTo(0,0); toast('✦「'+I.title+'」を試しに入れて計算した');
+}
+function ideaDel(id){
+  const i=(S.ideas||[]).findIndex(x=>x.id===id); if(i<0)return; const I=S.ideas[i];
+  S.ideas.splice(i,1); save(); render(); toast('◇「'+I.title+'」を消した');
+}
+function renderIdeas(){
+  const L=S.ideas||[]; if(!L.length)return '';
+  return '<h2>◇ いつか（時間未定）</h2>'+L.map(I=>'<div class="idea"><div class="it">◇ '+esc(I.title)
+    +(I.min?'<i>'+dur(I.min)+'</i>':'')+(I.addr?'<i>📍'+esc(I.addr)+'</i>':'')+'</div>'
+    +'<div class="ib"><button onclick="ideaFix(\''+I.id+'\')">時間をつける</button>'
+    +'<button onclick="ideaTry(\''+I.id+'\')">今日入る？</button>'
+    +'<button class="x" onclick="ideaDel(\''+I.id+'\')">×</button></div></div>').join('');
 }
 
 /* 日本語の変換を確定する Enter では追加しない。
@@ -2197,14 +2239,29 @@ function qaInput(){
     h.textContent='→ '+(Q.soft?'◌ ':'')+hmD(new Date(Q.at))+'「'+Q.title+'」'+(Q.P.addr?'　📍'+Q.P.addr+(Q.P.addrGuess?'？':''):'')
       +(Q.soft?'　未確定・'+dur(Q.softMin)+'とみて（計算には入れない）':'')
       +(Q.job?'　💼 '+Q.job.name+' '+Q.job.min+'分':'')+'　Enterで入れる'}
-  else{h.className='tiny ng';
-    h.textContent=Q.past?'その時刻はもう過ぎている':'「いつ」が見つからない（例：15時／明日19時／30分後／金曜18時半）'}
+  else if(Q.past){h.className='tiny ng';h.textContent='その時刻はもう過ぎている'}
+  else{const I=ideaParse(v);h.className='tiny ok';
+    h.textContent='→ ◇ いつか箱「'+I.title+'」'+(I.min?'（'+dur(I.min)+'）':'')+(I.addr?'　📍'+I.addr:'')+'　時間は決めずに入れる（Enter）'}
 }
+let qaBusy=false;
 async function qaAdd(){
-  const el=document.getElementById('qaT'), v=el.value.trim(); if(!v)return;
-  const Q=qaParse(v); if(!Q.ok){qaInput();el.focus();return}
+  const el=document.getElementById('qaT'), v=el.value.trim(); if(!v||qaBusy)return;
+  const Q=qaParse(v);
+  if(!Q.ok&&Q.past){qaInput();el.focus();return}
+  qaBusy=true; el.value='';            /* 待っている間にもう一度 Enter されても二重に入らない */
+  try{await qaAdd2(v,Q,el)}finally{qaBusy=false}
+}
+async function qaAdd2(v,Q,el){
+  if(!Q.ok){   /* 時刻が無い → いつか箱 */
+    if(syncKey){try{_pulling=false;await pullNow()}catch(e){}}
+    const I=ideaParse(v); (S.ideas||(S.ideas=[])).push({id:uid(),...I,made:Date.now()});
+    save(); qaInput(); render(); toast('◇ いつか箱に「'+I.title+'」を入れた'); el.focus();
+    if(MINI){try{window.webkit.messageHandlers.gyakusan.postMessage('added')}catch(e){}}
+    return;
+  }
   /* 足す前に最新を取る（しばらく開きっぱなしだった小窓の古い中身で、iPhoneの変更を潰さないため） */
   if(syncKey){try{_pulling=false;await pullNow()}catch(e){}}
+  if(S.anchors.some(a=>a.at===Q.at&&a.title===Q.title)){toast('「'+Q.title+'」（'+hmD(new Date(Q.at))+'）はもう入っている');qaInput();el.focus();return}
   const A=resolveAddr(Q.P.addr||'',null,null);
   const pl=Q.P.addr?findPlace(Q.P.addr):null;
   const id=uid();
@@ -2255,7 +2312,8 @@ function buildSummary(){
     .sort((x,y)=>new Date(x.at)-new Date(y.at));
   const up=fut.filter(a=>!a.soft).slice(0,6);
   const soft=fut.filter(a=>a.soft).slice(0,6).map(a=>({title:a.title||'予定',at:new Date(a.at).getTime(),min:a.softMin||60}));
-  return {v:1,genAt:Date.now(),buffer:S.buffer||0,sleepOn:S.sleepOn!==false,soft,
+  const ideas=(S.ideas||[]).slice(0,8).map(I=>({title:I.title,min:I.min||null}));
+  return {v:1,genAt:Date.now(),buffer:S.buffer||0,sleepOn:S.sleepOn!==false,soft,ideas,
     sleepPer:Math.round(((S.sleepH||0)+(S.sleepBufH||0))*60),
     items:up.map(a=>{const P=plan(a);const ok=hasPlace(a)&&!P.anchorUnknown;
       return {id:a.id,title:a.title||'予定',at:P.A.d.getTime(),hasPlace:hasPlace(a),job:a.job||null,
