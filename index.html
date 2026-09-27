@@ -719,6 +719,34 @@ async function reverseGeo(lat,lng){
 /* ================= いま居る場所を選ぶ =================
    よく行く場所を1回押して「いま居る場所」にする。Macの小窓（Hammerspoon）では GPS が使えないので出さない */
 const IN_HS=!!(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.gyakusan);
+/* Macの小窓の中だけ。ハンマースプーンが Macの居場所（Wi-Fiから）と、Apple純正の地図で出した移動時間
+   （電車は時刻表どおり）を流し込んでくる。自分で★から選んだ場所は2時間は上書きしない */
+let MACR={};
+function macRoute(A,cur){
+  const r=MACR[A.id]; if(!r||!A.lat)return null;
+  if(Date.now()-r.got>20*60000)return null;                        /* 古い */
+  if(Math.abs(r.at-new Date(A.at).getTime())>60000)return null;    /* 時刻が変わった */
+  if(Math.abs(r.tlat-A.lat)>1e-4||Math.abs(r.tlng-A.lng)>1e-4)return null;   /* 行き先が変わった */
+  if(cur&&cur.lat!=null&&Math.abs(r.flat-cur.lat)+Math.abs(r.flng-cur.lng)>0.003)return null;   /* 出発点が違う（寄り道・★で選んだ等） */
+  return r;
+}
+window.gyakusanMac=function(o){
+  if(!IN_HS||!o)return;
+  if(o.here&&!(S.here&&S.here.manual&&Date.now()-S.here.at<2*3600000)){
+    const moved=!S.here||kmBetween(S.here,o.here)>0.15;
+    S.here={lat:o.here.lat,lng:o.here.lng,acc:o.here.acc||100,at:Date.now(),manual:false,label:(S.here&&!moved&&S.here.label)||'Macの場所'};
+    try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}   /* 端末ごとの値なので updatedAt は上げない */
+    if(moved){
+      /* よく行く場所の近く（300m以内）ならその名前、無ければ地名 */
+      const near=placeList().filter(p=>p.lat!=null).map(p=>[p,kmBetween(p,o.here)]).sort((x,y)=>x[1]-y[1])[0];
+      if(near&&near[1]<0.3){S.hereName=near[0].name;S.here.label=near[0].name}
+      else reverseGeo(o.here.lat,o.here.lng).then(n=>{if(n&&S.here){S.here.label=n;S.hereName=n;render()}});
+      S.hereNameManual=false;
+    }
+  }
+  if(o.routes)MACR=o.routes;
+  render();
+};
 function pickHere(){
   const ps=placeList().filter(p=>p.lat!=null);
   let h=ps.map(p=>'<button class="opt'+(S.hereName===p.name&&S.here&&S.here.manual?' on':'')+'" onclick="setHerePlace(\''+p.id+'\')">★ '+esc(p.name)
@@ -1257,9 +1285,11 @@ function plan(forA){
     steps.push({s,tv,work,km,fromName,unknown});
     sum+=tv+work;
   }
-  let toAnchor=0, anchorKm=null, anchorUnknown=false;
+  let toAnchor=0, anchorKm=null, anchorUnknown=false, byApple=null;
+  const MR=macRoute(A,cur);
   if(hasPlace(A)){
     if(A.travelMin!=null)toAnchor=A.travelMin;
+    else if(MR){toAnchor=MR.min;anchorKm=MR.km;byApple=MR;if(MR.km)totalKm+=MR.km}
     else{const L=legMin(cur,A,A.mode); if(L){toAnchor=L.min;anchorKm=L.km;totalKm+=L.km} else anchorUnknown=true}
   }
   const buffer=S.buffer||0;
@@ -1272,7 +1302,7 @@ function plan(forA){
   const leaveAt=plus(A.d,-(toAnchor+buffer));          /* 出発（場所が無ければ動き出す）時刻 */
   const bedAt=nights?plus(leaveAt,-sleepPer):null;      /* 前の晩、遅くともこの時刻に寝る */
   const wakeAt=nights?plus(bedAt,sleepMin):null;
-  return {now,A,up,untilAnchor,subs,active,steps,sum,toAnchor,anchorKm,anchorUnknown,totalKm,
+  return {now,A,up,untilAnchor,subs,active,steps,sum,toAnchor,anchorKm,anchorUnknown,totalKm,byApple,
           fromNameToAnchor:curName,buffer,need,slack,startBy:plus(A.d,-need),
           nights,sleepMin,sleepBuf,sleepPer,sleepAll,leaveAt,bedAt,wakeAt};
 }
@@ -1496,7 +1526,7 @@ function renderNow(P){
     +'<div class="two" style="margin-top:8px">'
     +'<button class="btn sec" onclick="stashIdea()">サブ目標にする</button>'
     +'<button class="btn sec" onclick="dropTrial()">外す</button></div></div>';
-  const goMode=MODES[A.mode||DEFMODE].n;
+  const goMode=P.byApple?(MODES[P.byApple.mode]||MODES[DEFMODE]).n+'（Apple地図）':MODES[A.mode||DEFMODE].n;
   /* 見出しは「いま居る場所から直行なら何分」。帳簿の方は寄り道をつないだ実際の足し算 */
   const goDirect=!hasPlace(A)?null
     :(A.travelMin!=null?{min:A.travelMin,km:null}:legMin(S.here,A,A.mode));
@@ -2248,7 +2278,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-28-2';
+const APP_VERSION='2026-09-28-3';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
@@ -2286,13 +2316,50 @@ async function pullGcal(){
     GEV=j.events||[]; GEV_AT=Date.now();
     if(changed)pushSoon();   /* Macの札の要約にもGoogleの予定を入れて送り直す（中身の新しさ updatedAt は変えない） */
     try{localStorage.setItem('gyakusan.gcal',JSON.stringify({events:GEV,at:GEV_AT}))}catch(e){}
-    render();
+    render(); geoGcal();
   }catch(e){}
 }
 const lk=t=>{const d=new Date(t);return ymd(d)+'T'+hm(d)};
+/* Googleの予定の「場所」は文字だけなので、座標に直して覚えておく（gyakusan.gloc、端末ごと）。
+   よく行く場所の名前 → 覚えた結果 → 裏で国土地理院／OSMに聞く、の順。見つからなければ1日は聞き直さない */
+let GLOC={}; try{GLOC=JSON.parse(localStorage.getItem('gyakusan.gloc')||'{}')||{}}catch(e){}
+function gLocOf(loc){
+  loc=String(loc||'').trim(); if(!loc)return null;
+  const p=findPlace(loc)||findPlace(loc.split(/[,、，]/)[0]);
+  if(p&&p.lat!=null)return {lat:p.lat,lng:p.lng,name:p.name,travelMin:p.travelMin,mode:p.mode};
+  const c=GLOC[loc]; return c&&c.lat!=null?c:null;
+}
+/* 「カスティル渋谷, 日本、〒150-0011 東京都渋谷区東１丁目２２−６」→ 住所の部分、名前の部分、全体の順に試す */
+function gLocTries(loc){
+  const parts=loc.split(/\s*[,，]\s*/).filter(Boolean), out=[];
+  if(parts.length>1){out.push(parts.slice(1).join(' '));out.push(parts[0])}
+  out.push(loc);
+  return [...new Set(out)];
+}
+let _gGeoBusy=false;
+async function geoGcal(){
+  if(_gGeoBusy||!navigator.onLine)return; _gGeoBusy=true; let got=false;
+  try{
+    const locs=[...new Set(GEV.filter(e=>!e.allDay&&e.loc&&e.end>Date.now()).map(e=>e.loc.trim()))];
+    for(const loc of locs){
+      if(gLocOf(loc))continue;
+      const c=GLOC[loc]; if(c&&c.miss&&Date.now()-c.at<86400000)continue;
+      let r=null;
+      for(const q of gLocTries(loc)){
+        try{const g=await geocode(q); if(g&&!g.abroad){r={lat:g.lat,lng:g.lng,label:g.label,at:Date.now()};break}}catch(e){}
+        await new Promise(k=>setTimeout(k,1100));   /* OSMは1秒に1回まで */
+      }
+      GLOC[loc]=r||{miss:true,at:Date.now()}; if(r)got=true;
+      try{localStorage.setItem('gyakusan.gloc',JSON.stringify(GLOC))}catch(e){}
+    }
+  }finally{_gGeoBusy=false}
+  if(got){render();pushSoon()}
+}
 function gAnchors(){
-  return GEV.filter(e=>!e.allDay).map(e=>({id:'g:'+e.id,title:e.title,at:lk(e.start),gcal:true,
-    gmin:Math.max(0,Math.round((e.end-e.start)/60000)),addr:e.loc||'',lat:null,lng:null,mode:DEFMODE,travelMin:null,subs:[]}))
+  return GEV.filter(e=>!e.allDay).map(e=>{const L=gLocOf(e.loc);
+    return {id:'g:'+e.id,title:e.title,at:lk(e.start),gcal:true,
+    gmin:Math.max(0,Math.round((e.end-e.start)/60000)),addr:(L&&L.name)||e.loc||'',lat:L?L.lat:null,lng:L?L.lng:null,
+    mode:(L&&L.mode)||DEFMODE,travelMin:L&&L.travelMin!=null?L.travelMin:null,subs:[]}})
    /* 逆算にも同じ時刻・同じ題名があれば、逆算の方だけ残す */
    .filter(g=>!S.anchors.some(a=>a.at===g.at&&a.title===g.title));
 }
@@ -2511,6 +2578,8 @@ function buildSummary(){
     items:up.map(a=>{const P=plan(a);const ok=hasPlace(a)&&!P.anchorUnknown;
       return {id:a.id,title:a.title||'予定',at:P.A.d.getTime(),hasPlace:hasPlace(a),job:a.job||null,dur:a.gmin||null,gcal:!!a.gcal,
         toAnchor:Math.round(P.toAnchor),leaveAt:ok?P.leaveAt.getTime():null,
+        lat:a.lat,lng:a.lng,mode:a.mode||DEFMODE,tm:a.travelMin!=null,
+        via:(()=>{const v=P.steps.filter(x=>x.s.lat!=null).pop();return v?{lat:v.s.lat,lng:v.s.lng}:null})(),
         work:Math.round(P.sum),
         subs:P.steps.map(x=>({t:x.s.title||'',min:Math.round(x.work+x.tv)}))}})};
 }
@@ -2557,7 +2626,7 @@ async function pullNow(){
 }
 function syncNow(){if(!syncKey)return setSync('先に同期キーを入れてください',true);pullNow().then(()=>pushSoon())}
 syncField('sSyncKey',syncKey);
-pullNow(); pullGcal();
+pullNow(); pullGcal(); setTimeout(geoGcal,3000);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){pullNow();if(Date.now()-GEV_AT>60000)pullGcal()}});
 setInterval(()=>{if(document.visibilityState==='visible')pullGcal()},5*60000);
 setInterval(()=>{if(document.visibilityState==='visible')pullNow()},30000);
