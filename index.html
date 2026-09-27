@@ -281,6 +281,18 @@ input:focus,select:focus{border-color:var(--acc)}
   background:var(--panel);border:1px solid var(--line);border-radius:18px 18px 0 0;padding:18px 16px;
   padding-bottom:calc(18px + env(safe-area-inset-bottom));display:none;max-height:88vh;overflow-y:auto}
 #alSheet.on{display:block}
+#hpMask{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;display:none}
+#hpMask.on{display:block}
+#hpSheet{position:fixed;left:50%;transform:translateX(-50%);bottom:0;z-index:101;width:min(460px,100%);box-sizing:border-box;
+  background:var(--panel);border:1px solid var(--line);border-radius:20px 20px 0 0;padding:18px 16px 28px;display:none}
+#hpSheet.on{display:block}
+#hpSheet h3{margin:0 0 4px;font-size:16px}
+#hpSheet .sub{color:var(--dim);font-size:12.5px;margin-bottom:14px}
+#hpSheet .opt{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--panel2);border:1px solid var(--line);
+  color:var(--tx);border-radius:14px;padding:12px 14px;margin-bottom:8px;font-size:15px}
+#hpSheet .opt small{margin-left:auto;color:var(--dim);font-size:11px;max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#hpSheet .opt.on{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
+#hpSheet .opt.sec{color:var(--dim);font-size:13px}
 #alSheet h3{margin:0 0 4px;font-size:16px}
 #alSheet .sub{color:var(--dim);font-size:12.5px;margin-bottom:14px}
 #alSheet .opt{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
@@ -346,7 +358,7 @@ nav button.on{color:var(--acc)}
 <div class="wrap">
   <div class="hd">
     <div class="clock" id="clock">--:--<span id="dow"></span></div>
-    <div class="here" onclick="locate()">いま居る場所<b id="hereName">家</b><small id="hereGeo" class="no">タップで現在地を取る</small></div>
+    <div class="here" onclick="pickHere()">いま居る場所<b id="hereName">家</b><small id="hereGeo" class="no">タップで場所を選ぶ</small></div>
   </div>
 
   <!-- ================= いま ================= -->
@@ -605,6 +617,8 @@ nav button.on{color:var(--acc)}
   <button class="btn sec" onclick="closeAlarm()">今はいい</button>
 </div>
 
+<div id="hpMask" onclick="closeHere()"></div>
+<div id="hpSheet"><h3>いま、どこにいる？</h3><div class="sub">よく行く場所から選ぶと、そこを現在地として逆算します。</div><div id="hpBody"></div></div>
 <nav>
   <button class="on" data-p="now"><i>◎</i>いま</button>
   <button data-p="anc"><i>⚑</i>予定</button>
@@ -702,6 +716,27 @@ async function reverseGeo(lat,lng){
     return n||(j&&j.display_name)||null;
   }catch(e){return null}
 }
+/* ================= いま居る場所を選ぶ =================
+   よく行く場所を1回押して「いま居る場所」にする。Macの小窓（Hammerspoon）では GPS が使えないので出さない */
+const IN_HS=!!(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.gyakusan);
+function pickHere(){
+  const ps=placeList().filter(p=>p.lat!=null);
+  let h=ps.map(p=>'<button class="opt'+(S.hereName===p.name&&S.here&&S.here.manual?' on':'')+'" onclick="setHerePlace(\''+p.id+'\')">★ '+esc(p.name)
+    +'<small>'+esc(shortAddr(p.addr||''))+'</small></button>').join('');
+  if(!ps.length)h+='<div class="tiny" style="margin-bottom:10px">よく行く場所がまだありません。⚙設定の「よく行く場所」で足せます。</div>';
+  if(!IN_HS)h+='<button class="opt sec" onclick="closeHere();locate()">📍 GPSで今の場所を取る</button>';
+  h+='<button class="opt sec" onclick="closeHere();showTab(\'set\');setTimeout(()=>{const x=document.getElementById(\'hAddr\');x.scrollIntoView({block:\'center\'});x.focus()},200)">✎ 住所や駅名で入れる</button>';
+  document.getElementById('hpBody').innerHTML=h;
+  document.getElementById('hpMask').classList.add('on');document.getElementById('hpSheet').classList.add('on');
+}
+function closeHere(){document.getElementById('hpMask').classList.remove('on');document.getElementById('hpSheet').classList.remove('on')}
+function setHerePlace(id){
+  const p=placeList().find(x=>x.id===id); if(!p)return;
+  S.here={lat:p.lat,lng:p.lng,acc:0,at:Date.now(),manual:true,label:p.addr||p.name};
+  S.hereName=p.name; S.hereNameManual=true;
+  closeHere(); save(); render(); toast('いま居る場所を「'+p.name+'」にした。移動時間を計算し直したよ');
+}
+
 function locate(){
   if(!navigator.geolocation)return alert('この端末では現在地が取れません');
   locating='取得中…'; render();
@@ -1325,7 +1360,7 @@ function render(){
   const manual=S.here&&S.here.manual;
   const rough=S.here&&!manual&&S.here.acc>500;
   const mins=S.here?Math.round((Date.now()-S.here.at)/60000):0;
-  const geoTxt=!S.here ? 'タップで現在地を取る'
+  const geoTxt=!S.here ? 'タップで場所を選ぶ'
     : manual ? '✏️ 手入力ずみ'
     : (rough?'⚠️ ざっくり ±':'📍 取得ずみ ±')+S.here.acc+'m'+(mins>2?'（'+mins+'分前）':'');
   if(locating){hg.className='';hg.textContent=locating}
@@ -2213,7 +2248,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-27-6';
+const APP_VERSION='2026-09-28-1';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
@@ -2447,7 +2482,7 @@ async function qaAdd2(v,Q,el){
    新しい方が勝つ（updatedAt）。ついでに「次の約束の要約」も送り、Macの右上はそれだけ読む。 */
 const SYNC_URL='https://script.google.com/macros/s/AKfycbxUeBgtZzO_O3waCGc4Qv8308wPdUhxex-svMGbIHcaiMONog4swI6xVPWj5H7wkLJG/exec';
 const SKEY='gyakusan.syncKey';
-const LOCAL_ONLY=['here','trial'];      /* 端末ごとに違ってよいもの（現在地・ひらめきの試し） */
+const LOCAL_ONLY=['here','trial','hereName','hereNameManual'];      /* 端末ごとに違ってよいもの（現在地・ひらめきの試し） */
 let syncKey=''; try{syncKey=localStorage.getItem(SKEY)||''}catch(e){}
 /* #sync=キー で開かれたら、そのキーを覚える（Macの右上の小窓はこれで開く）。# の後ろはサーバーに送られない */
 (function(){const m=location.hash.match(/sync=([\w-]+)/); if(!m)return;
