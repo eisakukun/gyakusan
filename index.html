@@ -1400,7 +1400,7 @@ function softImpact(a,P){
 }
 function renderSoft(P){
   /* このあとの予定を全部、時間順に。いちばん上の大きい約束（P.A）は除く */
-  const L=AN().filter(a=>new Date(a.at)>P.now&&!(P.A&&a.id===P.A.id))
+  const L=AN().filter(a=>new Date(a.at)>P.now&&near(a)&&!(P.A&&a.id===P.A.id))
     .sort((x,y)=>new Date(x.at)-new Date(y.at));
   if(!L.length)return '';
   let prev=P.A?jobEnd(P.A):null, prevJob=!!(P.A&&P.A.job);   /* ひとつ前の確定の約束（仕事なら終わる時刻）から何時間 */
@@ -1448,18 +1448,18 @@ let heroOpen=false; try{heroOpen=localStorage.getItem('gyakusan.heroOpen')==='1'
 function toggleHero(){heroOpen=!heroOpen;try{localStorage.setItem('gyakusan.heroOpen',heroOpen?'1':'0')}catch(e){};render()}
 function heroMore(P){
   const A=P.A; if(!A)return '';
-  const rest=AN().filter(a=>a.id!==A.id&&new Date(a.at)>A.d).sort((x,y)=>new Date(x.at)-new Date(y.at));
+  const rest=AN().filter(a=>a.id!==A.id&&new Date(a.at)>A.d&&near(a)).sort((x,y)=>new Date(x.at)-new Date(y.at));
   if(!rest.length)return '';
   let h='<button class="hmore" onclick="toggleHero()">'+(heroOpen?'▲ 続きをしまう':'▼ 続きを見る（このあと '+rest.length+'件）')+'</button>';
   if(!heroOpen)return h;
   h+='<div class="hchain">';
   let prev=jobEnd(A);
-  h+='<div class="hc end">⚑ '+hm(A.d)+(A.job?'–'+hm(jobEnd(A)):'')+' '+esc(A.title)+(A.job?jbTag(A):'')+'</div>';
+  h+='<div class="hc end">⚑ '+hmD(A.d,P.now)+((A.job||A.gmin)?'–'+hm(jobEnd(A)):'')+' '+esc(A.title)+(A.job?jbTag(A):'')+'</div>';
   rest.forEach(a=>{const d=new Date(a.at);
-    if(a.soft){h+='<div class="hc sf">◌ '+hm(d)+' '+esc(a.title)+'（未確定）</div>';return}
+    if(a.soft){h+='<div class="hc sf">◌ '+hmD(d,P.now)+' '+esc(a.title)+'（未確定）</div>';return}
     if(d>prev)h+='<div class="hc gap">空き '+dur((d-prev)/60000)+'</div>';
     else if(d<prev)h+='<div class="hc ng">⚠ 前の予定と '+dur((prev-d)/60000)+' かぶっている</div>';
-    h+='<div class="hc end">⚑ '+hm(d)+(a.job?'–'+hm(jobEnd(a)):'')+' '+esc(a.title)+(a.job?jbTag(a):'')
+    h+='<div class="hc end">⚑ '+hmD(d,P.now)+((a.job||a.gmin)?'–'+hm(jobEnd(a)):'')+' '+esc(a.title)+(a.job?jbTag(a):'')
       +'<span class="r">あと '+dur((d-P.now)/60000)+'</span></div>';
     prev=jobEnd(a);
   });
@@ -1474,7 +1474,7 @@ function simpleTL(P){
   let h='<h2>逆算タイムライン</h2><div class="card"><div class="tl simple">';
   h+=row(P.now,hmT(P.now),'いま','now');
   let prev=P.now;
-  const firms=AN().filter(a=>!a.soft&&new Date(a.at)>=A.d).sort((x,y)=>new Date(x.at)-new Date(y.at));
+  const firms=AN().filter(a=>!a.soft&&new Date(a.at)>=A.d&&(a.id===A.id||near(a))).sort((x,y)=>new Date(x.at)-new Date(y.at));
   firms.forEach(a=>{const d=new Date(a.at), e=jobEnd(a);
     if(d>prev)h+=row(prev,'','空き '+dur((d-prev)/60000),'free');
     h+=row(d,hmT(d)+((a.job||a.gmin)?'–'+hm(e):''),'⚑ '+esc(a.title)+(a.job?jbTag(a):'')+gTag(a),'f');
@@ -1596,7 +1596,7 @@ function renderNow(P){
   /* そのあとの約束も続けて描く。間は「空き」、未確定は点線。
      次の約束より後ろは逆算していない（移動が分かれば出発時刻だけ添える） */
   let prevT=jobEnd(A);
-  const rest=AN().filter(a=>a.id!==A.id&&new Date(a.at)>A.d).sort((x,y)=>new Date(x.at)-new Date(y.at));
+  const rest=AN().filter(a=>a.id!==A.id&&new Date(a.at)>A.d&&near(a)).sort((x,y)=>new Date(x.at)-new Date(y.at));
   const softs=rest.filter(a=>a.soft), firms=rest.filter(a=>!a.soft);
   const softIn=(from,to)=>softs.filter(a=>{const d=new Date(a.at);return d>=from&&(!to||d<to)})
     .map(a=>{const d=new Date(a.at);
@@ -2248,7 +2248,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-28-1';
+const APP_VERSION='2026-09-28-2';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
@@ -2297,6 +2297,8 @@ function gAnchors(){
    .filter(g=>!S.anchors.some(a=>a.at===g.at&&a.title===g.title));
 }
 const AN=()=>S.anchors.concat(gAnchors());
+/* 続き・このあとの予定・タイムラインの続き・Macの札は、今から2日以内だけ（その先はカレンダーで見る） */
+const NEAR_H=48, near=a=>new Date(a.at)-Date.now()<=NEAR_H*3600000;
 const gAllDay=d0=>{const k=ymd(d0);return GEV.filter(e=>e.allDay&&ymd(new Date(e.start))<=k&&k<=ymd(new Date(e.end-1)))};
 const gTag=a=>a.gcal?' <span class="gt">G</span>':'';
 
