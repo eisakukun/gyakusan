@@ -25,6 +25,18 @@ h2:first-child{margin-top:6px}
 .muted{color:var(--dim);font-size:13px}
 .tiny{color:var(--dim2);font-size:12px;line-height:1.6}
 .qa{margin-bottom:10px}
+/* Macの札に重ねる1行入力（?mini=1）。入力欄と読み取りの案内だけ */
+html.mini,html.mini body{background:transparent!important;overflow:hidden}
+html.mini body>*{display:none!important}
+html.mini body>.wrap{display:block!important;padding:0!important;margin:0!important;max-width:none!important}
+html.mini .wrap>*{display:none!important}
+html.mini .wrap>#pg-now{display:block!important}
+html.mini #pg-now>*{display:none!important}
+html.mini #pg-now>.qa{display:block!important;margin:0;background:rgba(18,21,26,.97);border:1px solid #6aa9ff;border-radius:12px;padding:10px 12px}
+html.mini .qa input{font-size:15px;padding:8px 10px}
+html.mini #toast{display:none!important}
+html.mini .qa .tiny{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-top:5px;min-height:0}
+html.mini .qa{padding:8px 10px!important}
 /* 未確定（ずらせる予定）。計算には入れないので、点線・半透明で「置いてあるだけ」に見せる */
 .soft{border:1px dashed #3a4654;border-radius:14px;padding:10px 12px;margin-bottom:8px;opacity:.82}
 .soft .sh{font-size:14px;color:var(--tx)}
@@ -2067,7 +2079,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-26-17';
+const APP_VERSION='2026-09-27-1';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
@@ -2130,6 +2142,12 @@ function jobFromText(raw){
    Safari（iPhone・Macの小窓）は確定の Enter で isComposing が false になるので、
    keyCode 229 と「変換が終わった直後」も見て弾く */
 let qaIME=false;
+const MINI=/[?&]mini=1/.test(location.search);
+if(MINI){document.documentElement.classList.add('mini');
+  document.addEventListener('DOMContentLoaded',()=>{const q=document.getElementById('qaT');
+    if(q)q.placeholder='＋ 予定を打って Enter';
+    const h=document.getElementById('qaHint');if(h)h.textContent='例：19時 渋谷駅で打ち合わせ／17時 マッサ 90分';});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){try{window.webkit.messageHandlers.gyakusan.postMessage('close')}catch(_){}}});}
 (function(){const q=document.getElementById('qaT'); if(!q)return;
   q.addEventListener('compositionstart',()=>{qaIME=true});
   q.addEventListener('compositionend',()=>{setTimeout(()=>{qaIME=false},80)});})();
@@ -2173,7 +2191,7 @@ function qaParse0(raw){
 }
 function qaInput(){
   const v=document.getElementById('qaT').value.trim(), h=document.getElementById('qaHint');
-  if(!v){h.className='tiny';h.textContent='打って Enter。画面は「いま」のまま。';return}
+  if(!v){h.className='tiny';h.textContent=MINI?'例：19時 渋谷駅で打ち合わせ／17時 マッサ 90分':'打って Enter。画面は「いま」のまま。';return}
   const Q=qaParse(v);
   if(Q.ok){h.className='tiny ok';
     h.textContent='→ '+(Q.soft?'◌ ':'')+hmD(new Date(Q.at))+'「'+Q.title+'」'+(Q.P.addr?'　📍'+Q.P.addr+(Q.P.addrGuess?'？':''):'')
@@ -2185,6 +2203,8 @@ function qaInput(){
 async function qaAdd(){
   const el=document.getElementById('qaT'), v=el.value.trim(); if(!v)return;
   const Q=qaParse(v); if(!Q.ok){qaInput();el.focus();return}
+  /* 足す前に最新を取る（しばらく開きっぱなしだった小窓の古い中身で、iPhoneの変更を潰さないため） */
+  if(syncKey){try{_pulling=false;await pullNow()}catch(e){}}
   const A=resolveAddr(Q.P.addr||'',null,null);
   const pl=Q.P.addr?findPlace(Q.P.addr):null;
   const id=uid();
@@ -2193,6 +2213,7 @@ async function qaAdd(){
     ...(Q.soft?{soft:true,softMin:Q.softMin}:{}),...(Q.job?{job:Q.job}:{})});
   save(); el.value=''; qaInput(); render();
   toast((Q.soft?'◌ 未確定で ':'')+'「'+Q.title+'」を入れた（'+hmD(new Date(Q.at))+'）');
+  if(MINI){try{window.webkit.messageHandlers.gyakusan.postMessage('added')}catch(e){}}
   el.focus();
   /* 場所の名前だけ入った時は、裏で座標を探して移動時間を出す（見つからなくても予定は残る） */
   if(A.addr&&A.lat==null&&!Q.soft){
