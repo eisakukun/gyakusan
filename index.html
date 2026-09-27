@@ -2212,7 +2212,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-27-4';
+const APP_VERSION='2026-09-27-5';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
@@ -2246,7 +2246,9 @@ async function pullGcal(){
   if(!syncKey||!navigator.onLine)return;
   try{const r=await fetch(SYNC_URL+'?op=gcal&days=45&key='+encodeURIComponent(syncKey)+'&t='+Date.now());
     const j=await r.json(); if(!j.ok)throw new Error(j.err);
+    const changed=JSON.stringify(j.events||[])!==JSON.stringify(GEV);
     GEV=j.events||[]; GEV_AT=Date.now();
+    if(changed)pushSoon();   /* Macの札の要約にもGoogleの予定を入れて送り直す（中身の新しさ updatedAt は変えない） */
     try{localStorage.setItem('gyakusan.gcal',JSON.stringify({events:GEV,at:GEV_AT}))}catch(e){}
     render();
   }catch(e){}
