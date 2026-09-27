@@ -168,6 +168,44 @@ html.mini .qa{padding:8px 10px!important}
 .idea .ib{display:flex;gap:4px;flex-shrink:0}
 .idea .ib button{background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:8px;padding:4px 8px;font-size:12px}
 .idea .ib button.x{width:28px;padding:4px 0}
+/* カレンダー */
+.cgrid{display:grid;grid-template-columns:22px repeat(var(--n),1fr);gap:3px;margin-bottom:12px}
+.chours{position:relative}
+.chours div{position:absolute;right:2px;transform:translateY(-50%);font-size:10px;color:var(--dim2)}
+.ccol{position:relative;background:#151a20;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.ccol.today{border-color:#6aa9ff}
+.chd{position:absolute;top:0;left:0;right:0;height:22px;font-size:11px;color:var(--dim);text-align:center;line-height:22px;background:#1a2028;border-bottom:1px solid var(--line)}
+.chd b{margin-left:3px;font-weight:600}
+.ccol.today .chd{color:#cfe2ff;background:#1d2a3b}
+.cln{position:absolute;left:0;right:0;border-top:1px solid #20262e}
+.cnow{position:absolute;left:0;right:0;border-top:2px solid var(--acc);z-index:2}
+.cev{position:absolute;left:2px;right:2px;background:rgba(255,107,107,.18);border:1px solid #7a3a40;border-radius:6px;
+  font-size:10px;line-height:1.25;padding:1px 3px;overflow:hidden;color:#ffd9d9;cursor:pointer;z-index:1}
+.cev b{font-weight:700}
+.cev.jb{background:rgba(255,180,84,.18);border-color:#7a5a2a;color:#ffe0b3}
+.cev.sf{background:transparent;border-style:dashed;border-color:#5a6573;color:var(--dim)}
+.cev.past{opacity:.45}
+.clist{display:flex;flex-direction:column;gap:4px;margin-bottom:16px}
+.cld{font-size:12px;color:var(--dim);margin-top:8px}
+.cli{font-size:14px;padding:6px 10px;border:1px solid #4d2c30;background:rgba(255,107,107,.07);border-radius:10px}
+.cli b{margin-right:8px;font-variant-numeric:tabular-nums}
+.cli.sf{border-style:dashed;border-color:#3a4654;background:transparent;color:var(--dim)}
+.cli.past{opacity:.5}
+.cmhd{display:flex;align-items:center;justify-content:space-between;margin:4px 0 8px}
+.cmhd button{background:transparent;border:1px solid var(--line);color:var(--tx);border-radius:8px;width:34px;height:30px}
+.cmon{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:10px}
+.cw{font-size:11px;color:var(--dim);text-align:center}
+.cw.sat{color:#6aa9ff}.cw.sun{color:#ff8a8a}
+.cm{min-height:62px;background:#151a20;border:1px solid var(--line);border-radius:8px;padding:3px;cursor:pointer;overflow:hidden}
+.cm span{display:block;font-size:11px;color:var(--dim)}
+.cm i{display:block;font-style:normal;font-size:10px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  background:rgba(255,107,107,.16);color:#ffd9d9;border-radius:4px;padding:0 3px;margin-top:2px}
+.cm i.jb{background:rgba(255,180,84,.18);color:#ffe0b3}
+.cm i.sf{background:transparent;border:1px dashed #4a5563;color:var(--dim)}
+.cm em{font-style:normal;font-size:10px;color:var(--dim)}
+.cm.out{opacity:.35}
+.cm.today{border-color:#6aa9ff}.cm.today span{color:#9cc7ff;font-weight:700}
+.cm.pick{box-shadow:inset 0 0 0 2px #6aa9ff}
 .hmore{display:block;width:100%;margin-top:12px;background:transparent;border:1px dashed #33414f;color:var(--dim);
   border-radius:12px;padding:8px 0;font-size:13px}
 .hchain{margin-top:10px;border-left:2px solid #2f3b48;padding-left:12px;display:flex;flex-direction:column;gap:4px}
@@ -415,6 +453,13 @@ nav button.on{color:var(--acc)}
   </section>
 
   <!-- ================= 設定 ================= -->
+  <!-- ================= カレンダー ================= -->
+  <section class="pg" id="pg-cal">
+    <h2 class="tlh">カレンダー<span class="seg" id="calSeg">
+      <button data-v="3" onclick="setCal(3)">3日</button><button data-v="7" onclick="setCal(7)">1週間</button><button data-v="30" onclick="setCal(30)">1ヶ月</button></span></h2>
+    <div id="calBody"></div>
+  </section>
+
   <section class="pg" id="pg-set">
     <h2>いま居る場所</h2>
     <div class="card">
@@ -559,6 +604,7 @@ nav button.on{color:var(--acc)}
 <nav>
   <button class="on" data-p="now"><i>◎</i>いま</button>
   <button data-p="anc"><i>⚑</i>予定</button>
+  <button data-p="cal"><i>▦</i>カレンダー</button>
   <button data-p="idea"><i>✦</i>ひらめき</button>
   <button data-p="set"><i>⚙</i>設定</button>
 </nav>
@@ -1296,6 +1342,7 @@ function render(){
   const alb=document.getElementById('sAlAsk'); if(alb)alb.classList.toggle('on',S.alarmAsk!==false);
   const alf=document.getElementById('sAlFull'); if(alf)alf.classList.toggle('on',S.alarmPayload==='full');
   renderNow(P); renderAnc(P); syncParent(); renderPlaceChips(); renderPlaces(); renderJobs();
+  if(document.getElementById('pg-cal')?.classList.contains('on'))renderCal();
 }
 function syncField(id,v){const e=document.getElementById(id);if(e&&document.activeElement!==e)e.value=v}
 
@@ -1970,7 +2017,81 @@ function cancelEditSub(){
   ['sT','sAddr'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('sGeo').innerHTML='';GEOBUF.s=null;clearNLP();
 }
+/* ================= カレンダー =================
+   3日・1週間は日ごとの縦の列（時間の目盛り＋予定の帯）。1ヶ月はマス目で、日を押すとその日の一覧。
+   見る範囲は端末ごとに覚える */
+let calView=7, calPick=null, calMonth=null;
+try{calView=+(localStorage.getItem('gyakusan.calView')||7)}catch(e){}
+function setCal(v){calView=v;calPick=null;try{localStorage.setItem('gyakusan.calView',String(v))}catch(e){};renderCal()}
+const dayKey=d=>ymd(d);
+function eventsOn(d0){   /* その日に始まる予定（確定・未確定） */
+  const k=dayKey(d0);
+  return S.anchors.filter(a=>a.at&&a.at.slice(0,10)===k).sort((x,y)=>new Date(x.at)-new Date(y.at))
+    .map(a=>{const s0=new Date(a.at), e0=a.job?jobEnd(a):a.soft?plus(s0,a.softMin||60):plus(s0,30);
+      return {a,s:s0,e:e0}});
+}
+function renderCal(){
+  const el=document.getElementById('calBody'); if(!el)return;
+  document.querySelectorAll('#calSeg button').forEach(b=>b.classList.toggle('on',+b.dataset.v===calView));
+  const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  if(calView===30){el.innerHTML=calMonthHTML(today,now);return}
+  const days=[...Array(calView)].map((_,i)=>{const d=new Date(today);d.setDate(d.getDate()+i);return d});
+  /* 時間の範囲：ふだんは 8〜23時。予定がはみ出す時は広げる */
+  let h0=8,h1=23;
+  days.forEach(d=>eventsOn(d).forEach(x=>{h0=Math.min(h0,x.s.getHours());h1=Math.max(h1,Math.ceil(x.e.getHours()+x.e.getMinutes()/60))}));
+  h1=Math.min(h1,26);
+  const PX=calView===3?40:30, top=h=>(h-h0)*PX;
+  let g='<div class="cgrid" style="--n:'+calView+'"><div class="chours" style="height:'+((h1-h0)*PX+24)+'px">';
+  for(let h=h0;h<=h1;h++)g+='<div style="top:'+(top(h)+24)+'px">'+(h%24)+'</div>';
+  g+='</div>';
+  days.forEach(d=>{
+    const isT=+d===+today;
+    g+='<div class="ccol'+(isT?' today':'')+'" style="height:'+((h1-h0)*PX+24)+'px">'
+      +'<div class="chd">'+(d.getMonth()+1)+'/'+d.getDate()+'<b>'+DOW[d.getDay()]+'</b></div>';
+    for(let h=h0;h<=h1;h++)g+='<i class="cln" style="top:'+(top(h)+24)+'px"></i>';
+    if(isT){const nh=now.getHours()+now.getMinutes()/60; if(nh>=h0&&nh<=h1)g+='<i class="cnow" style="top:'+(top(nh)+24)+'px"></i>'}
+    eventsOn(d).forEach(x=>{
+      const sh=x.s.getHours()+x.s.getMinutes()/60+(x.s.getDate()!==d.getDate()?24:0);
+      const eh=Math.min(h1,sh+(x.e-x.s)/3600000);
+      const past=x.e<now;
+      g+='<div class="cev'+(x.a.soft?' sf':'')+(x.a.job?' jb':'')+(past?' past':'')+'" style="top:'+(top(sh)+24)+'px;height:'+Math.max(16,(eh-sh)*PX-2)+'px"'
+        +' onclick="editAnchor(\''+x.a.id+'\');showTab(\'anc\')" title="'+esc(x.a.title)+'">'
+        +'<b>'+hm(x.s)+'</b> '+(x.a.soft?'◌':'')+esc(x.a.title)+(x.a.job?' 💼'+x.a.job.min:'')+'</div>';
+    });
+    g+='</div>';
+  });
+  el.innerHTML=g+'</div>'+calListHTML(days,now);
+}
+function calListHTML(days,now){   /* 下に文字でも（小さい列だと読めないので） */
+  let h='<div class="clist">';
+  days.forEach(d=>{const L=eventsOn(d); if(!L.length)return;
+    h+='<div class="cld">'+(d.getMonth()+1)+'/'+d.getDate()+'('+DOW[d.getDay()]+')</div>';
+    L.forEach(x=>{h+='<div class="cli'+(x.a.soft?' sf':'')+(x.e<now?' past':'')+'"><b>'+hm(x.s)+(x.a.job||x.a.soft?'–'+hm(x.e):'')+'</b>'
+      +(x.a.soft?'◌ ':'⚑ ')+esc(x.a.title)+(x.a.job?jbTag(x.a):'')+'</div>'})});
+  return h+'</div>';
+}
+function calMonthHTML(today,now){
+  const base=calMonth||new Date(today.getFullYear(),today.getMonth(),1);
+  const y=base.getFullYear(), m=base.getMonth();
+  const first=new Date(y,m,1), start=new Date(first); start.setDate(1-((first.getDay()+6)%7));   /* 月曜はじまり */
+  let h='<div class="cmhd"><button onclick="calMonth=new Date('+y+','+(m-1)+',1);calPick=null;renderCal()">‹</button>'
+    +'<b>'+y+'年'+(m+1)+'月</b><button onclick="calMonth=new Date('+y+','+(m+1)+',1);calPick=null;renderCal()">›</button></div>'
+    +'<div class="cmon"><div class="cw">月</div><div class="cw">火</div><div class="cw">水</div><div class="cw">木</div><div class="cw">金</div><div class="cw sat">土</div><div class="cw sun">日</div>';
+  const cells=Math.ceil((((first.getDay()+6)%7)+new Date(y,m+1,0).getDate())/7)*7;   /* その月に要る週の数だけ */
+  for(let i=0;i<cells;i++){const d=new Date(start);d.setDate(start.getDate()+i);
+    const L=eventsOn(d), k=dayKey(d);
+    h+='<div class="cm'+(d.getMonth()!==m?' out':'')+(+d===+today?' today':'')+(calPick===k?' pick':'')+'" onclick="calPick=\''+k+'\';renderCal()">'
+      +'<span>'+d.getDate()+'</span>'
+      +L.slice(0,3).map(x=>'<i class="'+(x.a.soft?'sf':'')+(x.a.job?' jb':'')+'">'+esc(x.a.title)+'</i>').join('')
+      +(L.length>3?'<em>+'+(L.length-3)+'</em>':'')+'</div>';
+  }
+  h+='</div>';
+  if(calPick){const [yy,mm,dd]=calPick.split('-').map(Number); h+=calListHTML([new Date(yy,mm-1,dd)],now)
+    +(eventsOn(new Date(yy,mm-1,dd)).length?'':'<div class="tiny" style="padding:8px 4px">この日は予定なし</div>')}
+  return h;
+}
 function showTab(p){
+  if(p==='cal')setTimeout(renderCal,0);
   document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x.dataset.p===p));
   document.querySelectorAll('.pg').forEach(x=>x.classList.toggle('on',x.id==='pg-'+p));
 }
@@ -2085,7 +2206,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-27-2';
+const APP_VERSION='2026-09-27-3';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
