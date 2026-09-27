@@ -206,6 +206,10 @@ html.mini .qa{padding:8px 10px!important}
 .cm.out{opacity:.35}
 .cm.today{border-color:#6aa9ff}.cm.today span{color:#9cc7ff;font-weight:700}
 .cm.pick{box-shadow:inset 0 0 0 2px #6aa9ff}
+.gt{display:inline-block;font-size:10px;font-weight:800;color:#0f1216;background:#8ab4ff;border-radius:4px;padding:0 4px;margin-left:5px;vertical-align:1px}
+.cev.gc{background:rgba(106,169,255,.18);border-color:#35527a;color:#d6e6ff}
+.cli.gc{border-color:#2f4a6b;background:rgba(106,169,255,.08)}
+.cm i.gc{background:rgba(106,169,255,.18);color:#d6e6ff}
 .hmore{display:block;width:100%;margin-top:12px;background:transparent;border:1px dashed #33414f;color:var(--dim);
   border-radius:12px;padding:8px 0;font-size:13px}
 .hchain{margin-top:10px;border-left:2px solid #2f3b48;padding-left:12px;display:flex;flex-direction:column;gap:4px}
@@ -1193,7 +1197,7 @@ function nlpPreview(R,kind){
 /* forA を渡すと、その予定について計算する（同期の要約で2件目以降も出すため。ひらめきの試しは入れない） */
 function plan(forA){
   const now=new Date();
-  const up=S.anchors.filter(a=>!a.soft).map(a=>({...a,d:new Date(a.at)}))
+  const up=AN().filter(a=>!a.soft).map(a=>({...a,d:new Date(a.at)}))
     .filter(a=>!isNaN(a.d)&&a.d>now).sort((x,y)=>x.d-y.d);
   const A=forA?{...forA,d:new Date(forA.at)}:(up[0]||null);
   if(!A)return {now,A:null,up};
@@ -1360,7 +1364,7 @@ function softImpact(a,P){
 }
 function renderSoft(P){
   /* このあとの予定を全部、時間順に。いちばん上の大きい約束（P.A）は除く */
-  const L=S.anchors.filter(a=>new Date(a.at)>P.now&&!(P.A&&a.id===P.A.id))
+  const L=AN().filter(a=>new Date(a.at)>P.now&&!(P.A&&a.id===P.A.id))
     .sort((x,y)=>new Date(x.at)-new Date(y.at));
   if(!L.length)return '';
   let prev=P.A?jobEnd(P.A):null, prevJob=!!(P.A&&P.A.job);   /* ひとつ前の確定の約束（仕事なら終わる時刻）から何時間 */
@@ -1368,9 +1372,9 @@ function renderSoft(P){
     if(!a.soft){
       const lv=anchorLeaveAt(a);
       const gap=prev?'（前の予定'+(prevJob?'の仕事が終わって':'')+'から '+dur((d-prev)/60000)+'）':''; prev=jobEnd(a); prevJob=!!a.job;
-      return '<div class="card upc" onclick="editAnchor(\''+a.id+'\')"><div class="sh"><b>⚑ '+hmD(d,P.now)+'</b> '+esc(a.title)
+      return '<div class="card upc"'+(a.gcal?'':' onclick="editAnchor(\''+a.id+'\')"')+'><div class="sh"><b>⚑ '+hmD(d,P.now)+'</b> '+esc(a.title)+gTag(a)
         +'<span class="r">あと '+dur((d-P.now)/60000)+'</span>'
-        +'<button class="x" title="この予定を消す" onclick="event.stopPropagation();delQuick(\''+a.id+'\')">×</button></div>'
+        +(a.gcal?'':'<button class="x" title="この予定を消す" onclick="event.stopPropagation();delQuick(\''+a.id+'\')">×</button>')+'</div>'
         +'<div class="si">'+(lv?'🚶 '+hmD(lv,P.now)+' に出る':(hasPlace(a)?'🚶 移動時間まだ':'場所なし'))+gap+'</div>'+jobChips(a)+'</div>';
     }
     return '<div class="soft"><div class="sh"><span class="ring">◌</span><b>'+hmD(d,P.now)+'</b> '+esc(a.title)
@@ -1408,7 +1412,7 @@ let heroOpen=false; try{heroOpen=localStorage.getItem('gyakusan.heroOpen')==='1'
 function toggleHero(){heroOpen=!heroOpen;try{localStorage.setItem('gyakusan.heroOpen',heroOpen?'1':'0')}catch(e){};render()}
 function heroMore(P){
   const A=P.A; if(!A)return '';
-  const rest=S.anchors.filter(a=>a.id!==A.id&&new Date(a.at)>A.d).sort((x,y)=>new Date(x.at)-new Date(y.at));
+  const rest=AN().filter(a=>a.id!==A.id&&new Date(a.at)>A.d).sort((x,y)=>new Date(x.at)-new Date(y.at));
   if(!rest.length)return '';
   let h='<button class="hmore" onclick="toggleHero()">'+(heroOpen?'▲ 続きをしまう':'▼ 続きを見る（このあと '+rest.length+'件）')+'</button>';
   if(!heroOpen)return h;
@@ -1434,10 +1438,10 @@ function simpleTL(P){
   let h='<h2>逆算タイムライン</h2><div class="card"><div class="tl simple">';
   h+=row(P.now,hmT(P.now),'いま','now');
   let prev=P.now;
-  const firms=S.anchors.filter(a=>!a.soft&&new Date(a.at)>=A.d).sort((x,y)=>new Date(x.at)-new Date(y.at));
+  const firms=AN().filter(a=>!a.soft&&new Date(a.at)>=A.d).sort((x,y)=>new Date(x.at)-new Date(y.at));
   firms.forEach(a=>{const d=new Date(a.at), e=jobEnd(a);
     if(d>prev)h+=row(prev,'','空き '+dur((d-prev)/60000),'free');
-    h+=row(d,hmT(d)+(a.job?'–'+hmT(e):''),'⚑ '+esc(a.title)+(a.job?jbTag(a):''),'f');
+    h+=row(d,hmT(d)+((a.job||a.gmin)?'–'+hm(e):''),'⚑ '+esc(a.title)+(a.job?jbTag(a):'')+gTag(a),'f');
     prev=e>prev?e:prev;
   });
   return h+'</div></div>';
@@ -1466,7 +1470,7 @@ function renderNow(P){
     : hasPlace(A) ? ' <b style="color:#ffb454">🚶 移動 ?分（現在地がまだ）</b>'
     : ' <b style="color:#ffb454">🚶 移動時間まだ</b>';
   h+='<div class="hero'+(late?' go':'')+'">'
-    +'<div class="lbl">'+esc(A.title)+'（'+hm(A.d)+(A.addr?' ・'+esc(shortAddr(A.addr)):'')+'）まで'
+    +'<div class="lbl">'+esc(A.title)+gTag(A)+'（'+hm(A.d)+(A.addr?' ・'+esc(shortAddr(A.addr)):'')+'）まで'
     +goTag+'</div>'
     +'<div class="big'+(late?'':' ok')+'"><span class="pre">'+(late?'足りない':'のこり')+'</span>'
     +(late?dur(-P.slack):dur(P.slack))+'</div>'
@@ -1521,7 +1525,7 @@ function renderNow(P){
   const hmT=d=>hmD(d,P.now);   /* 日が変わった時刻には日付を添える */
   /* 1時間ごとの刻み。次の行の開始時刻までに来た「ちょうどの時刻」を細い線で挟む。
      夜をまたいで長いときは3時間ごと。ちょうどその時刻に始まる行があれば刻みは出さない */
-  const endT=(()=>{let e=A.d;S.anchors.forEach(a=>{const d=new Date(a.at);if(d>e)e=d});return e})();
+  const endT=(()=>{let e=A.d;AN().forEach(a=>{const d=new Date(a.at);if(d>e)e=d});return e})();
   const step=(endT-P.now)/3600000>12?180:60;
   let tickT=new Date(P.now); tickT.setMinutes(0,0,0); tickT=plus(tickT,60);
   if(step===180)while(tickT.getHours()%3)tickT=plus(tickT,60);
@@ -1535,7 +1539,7 @@ function renderNow(P){
     if(st.tv){c=plus(c,st.tv);h+=tlx(c,hmT(c),'<span class="mvx">'+esc(st.s.title)+' 着</span>（'
       +(st.km!=null?st.km.toFixed(1)+'km・':'')+'移動'+dur(st.tv)+'）','mv')}
     const e=plus(c,st.work);
-    h+=tlx(c,hmT(c)+'–'+hmT(e),esc(st.s.title),'');
+    h+=tlx(c,hmT(c)+'–'+hm(e),esc(st.s.title),'');
     c=e;
   });
   if(P.nights){
@@ -1551,12 +1555,12 @@ function renderNow(P){
     h+=tlx(c,hmT(c),'🚶 '+esc(A.title)+'へ出発（'+(P.anchorKm!=null?P.anchorKm.toFixed(1)+'km・':'')+dur(P.toAnchor)+'）','k');c=plus(c,P.toAnchor);
     h+=tlx(c,hmT(c),'着'+(P.buffer?'（余裕'+dur(P.buffer)+'）':''),'buf');
   }else if(P.buffer)h+=tlx(c,hmT(c),'余裕 '+dur(P.buffer),'buf');
-  h+=A.job?tlx(A.d,hmT(A.d)+'–'+hmT(jobEnd(A)),'⚑ '+esc(A.title)+jbTag(A),'f')
-          :tlx(A.d,hmT(A.d),'⚑ '+esc(A.title),'f');
+  h+=(A.job||A.gmin)?tlx(A.d,hmT(A.d)+'–'+hm(jobEnd(A)),'⚑ '+esc(A.title)+(A.job?jbTag(A):'')+gTag(A),'f')
+          :tlx(A.d,hmT(A.d),'⚑ '+esc(A.title)+gTag(A),'f');
   /* そのあとの約束も続けて描く。間は「空き」、未確定は点線。
      次の約束より後ろは逆算していない（移動が分かれば出発時刻だけ添える） */
   let prevT=jobEnd(A);
-  const rest=S.anchors.filter(a=>a.id!==A.id&&new Date(a.at)>A.d).sort((x,y)=>new Date(x.at)-new Date(y.at));
+  const rest=AN().filter(a=>a.id!==A.id&&new Date(a.at)>A.d).sort((x,y)=>new Date(x.at)-new Date(y.at));
   const softs=rest.filter(a=>a.soft), firms=rest.filter(a=>!a.soft);
   const softIn=(from,to)=>softs.filter(a=>{const d=new Date(a.at);return d>=from&&(!to||d<to)})
     .map(a=>{const d=new Date(a.at);
@@ -1567,8 +1571,8 @@ function renderNow(P){
     if(until>prevT)h+=tlx(prevT,hmT(prevT)+'–'+hmT(until),'空き '+dur((until-prevT)/60000),'free');
     h+=softIn(prevT,d);                         /* この空きの中にある未確定 */
     if(lv&&lv>prevT)h+=tlx(lv,hmT(lv),'🚶 '+esc(a.title)+'へ出発','k');
-    h+=a.job?tlx(d,hmT(d)+'–'+hmT(jobEnd(a)),'⚑ '+esc(a.title)+jbTag(a),'f')
-            :tlx(d,hmT(d),'⚑ '+esc(a.title),'f');
+    h+=(a.job||a.gmin)?tlx(d,hmT(d)+'–'+hm(jobEnd(a)),'⚑ '+esc(a.title)+(a.job?jbTag(a):'')+gTag(a),'f')
+            :tlx(d,hmT(d),'⚑ '+esc(a.title)+gTag(a),'f');
     prevT=a.job?jobEnd(a):d;
   });
   h+=softIn(prevT,null);                        /* 最後の約束より後ろの未確定 */
@@ -1579,7 +1583,7 @@ function renderNow(P){
       +'<span class="seg"><button class="'+(tlSimple?'on':'')+'" onclick="setTL(true)">シンプル</button>'
       +'<button class="'+(tlSimple?'':'on')+'" onclick="setTL(false)">くわしく</button></span></h2>');
 
-  if(!hasPlace(A))
+  if(!hasPlace(A)&&!A.gcal)
     h+='<div class="card" style="border-color:#4a3a22;background:#241d13"><div class="muted">'
       +'🚶 <b>「'+esc(A.title)+'」に場所が入っていない</b>ので、移動時間が1分も引かれていません。'
       +'入れると「'+esc(goMode)+'で約◯分」が出て、出発の時刻もその分だけ早まります。'
@@ -1597,7 +1601,7 @@ function renderNow(P){
       +'<button class="btn sec" onclick="showTab(\'set\');window.scrollTo(0,0)">住所で入れる</button>'
       +'</div></div>';
 
-  h+='<div class="two" style="margin:6px 0 10px">'
+  if(!A.gcal)h+='<div class="two" style="margin:6px 0 10px">'
     +'<button class="btn sec" onclick="editAnchor(\''+A.id+'\')">✎ この予定を直す</button>'
     +'<button class="btn sec danger" onclick="delAnchor(\''+A.id+'\')">× この予定を消す</button></div>';
   if(P.totalKm>0.05)h+='<div class="tiny" style="padding:0 4px 6px">🚶 今日この段取りで動く距離：合計 <b style="color:#6aa9ff">'
@@ -2026,8 +2030,8 @@ function setCal(v){calView=v;calPick=null;try{localStorage.setItem('gyakusan.cal
 const dayKey=d=>ymd(d);
 function eventsOn(d0){   /* その日に始まる予定（確定・未確定） */
   const k=dayKey(d0);
-  return S.anchors.filter(a=>a.at&&a.at.slice(0,10)===k).sort((x,y)=>new Date(x.at)-new Date(y.at))
-    .map(a=>{const s0=new Date(a.at), e0=a.job?jobEnd(a):a.soft?plus(s0,a.softMin||60):plus(s0,30);
+  return AN().filter(a=>a.at&&a.at.slice(0,10)===k).sort((x,y)=>new Date(x.at)-new Date(y.at))
+    .map(a=>{const s0=new Date(a.at), e0=(a.job||a.gmin)?jobEnd(a):a.soft?plus(s0,a.softMin||60):plus(s0,30);
       return {a,s:s0,e:e0}});
 }
 function renderCal(){
@@ -2054,8 +2058,8 @@ function renderCal(){
       const sh=x.s.getHours()+x.s.getMinutes()/60+(x.s.getDate()!==d.getDate()?24:0);
       const eh=Math.min(h1,sh+(x.e-x.s)/3600000);
       const past=x.e<now;
-      g+='<div class="cev'+(x.a.soft?' sf':'')+(x.a.job?' jb':'')+(past?' past':'')+'" style="top:'+(top(sh)+24)+'px;height:'+Math.max(16,(eh-sh)*PX-2)+'px"'
-        +' onclick="editAnchor(\''+x.a.id+'\');showTab(\'anc\')" title="'+esc(x.a.title)+'">'
+      g+='<div class="cev'+(x.a.soft?' sf':'')+(x.a.job?' jb':'')+(x.a.gcal?' gc':'')+(past?' past':'')+'" style="top:'+(top(sh)+24)+'px;height:'+Math.max(16,(eh-sh)*PX-2)+'px"'
+        +(x.a.gcal?'':' onclick="editAnchor(\''+x.a.id+'\');showTab(\'anc\')"')+' title="'+esc(x.a.title)+'">'
         +'<b>'+hm(x.s)+'</b> '+(x.a.soft?'◌':'')+esc(x.a.title)+(x.a.job?' 💼'+x.a.job.min:'')+'</div>';
     });
     g+='</div>';
@@ -2064,10 +2068,11 @@ function renderCal(){
 }
 function calListHTML(days,now){   /* 下に文字でも（小さい列だと読めないので） */
   let h='<div class="clist">';
-  days.forEach(d=>{const L=eventsOn(d); if(!L.length)return;
+  days.forEach(d=>{const L=eventsOn(d), AD=gAllDay(d); if(!L.length&&!AD.length)return;
     h+='<div class="cld">'+(d.getMonth()+1)+'/'+d.getDate()+'('+DOW[d.getDay()]+')</div>';
-    L.forEach(x=>{h+='<div class="cli'+(x.a.soft?' sf':'')+(x.e<now?' past':'')+'"><b>'+hm(x.s)+(x.a.job||x.a.soft?'–'+hm(x.e):'')+'</b>'
-      +(x.a.soft?'◌ ':'⚑ ')+esc(x.a.title)+(x.a.job?jbTag(x.a):'')+'</div>'})});
+    AD.forEach(e=>{h+='<div class="cli gc"><b>終日</b>'+esc(e.title)+' <span class="gt">G</span></div>'});
+    L.forEach(x=>{h+='<div class="cli'+(x.a.soft?' sf':'')+(x.a.gcal?' gc':'')+(x.e<now?' past':'')+'"><b>'+hm(x.s)+(x.a.job||x.a.soft||x.a.gmin?'–'+hm(x.e):'')+'</b>'
+      +(x.a.soft?'◌ ':'⚑ ')+esc(x.a.title)+(x.a.job?jbTag(x.a):'')+gTag(x.a)+'</div>'})});
   return h+'</div>';
 }
 function calMonthHTML(today,now){
@@ -2082,12 +2087,13 @@ function calMonthHTML(today,now){
     const L=eventsOn(d), k=dayKey(d);
     h+='<div class="cm'+(d.getMonth()!==m?' out':'')+(+d===+today?' today':'')+(calPick===k?' pick':'')+'" onclick="calPick=\''+k+'\';renderCal()">'
       +'<span>'+d.getDate()+'</span>'
-      +L.slice(0,3).map(x=>'<i class="'+(x.a.soft?'sf':'')+(x.a.job?' jb':'')+'">'+esc(x.a.title)+'</i>').join('')
+      +gAllDay(d).map(e=>'<i class="gc">'+esc(e.title)+'</i>').join('')
+      +L.slice(0,3).map(x=>'<i class="'+(x.a.soft?'sf':'')+(x.a.job?' jb':'')+(x.a.gcal?' gc':'')+'">'+esc(x.a.title)+'</i>').join('')
       +(L.length>3?'<em>+'+(L.length-3)+'</em>':'')+'</div>';
   }
   h+='</div>';
   if(calPick){const [yy,mm,dd]=calPick.split('-').map(Number); h+=calListHTML([new Date(yy,mm-1,dd)],now)
-    +(eventsOn(new Date(yy,mm-1,dd)).length?'':'<div class="tiny" style="padding:8px 4px">この日は予定なし</div>')}
+    +(eventsOn(new Date(yy,mm-1,dd)).length||gAllDay(new Date(yy,mm-1,dd)).length?'':'<div class="tiny" style="padding:8px 4px">この日は予定なし</div>')}
   return h;
 }
 function showTab(p){
@@ -2206,7 +2212,7 @@ function aSetQuick(m){
 })();
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-27-3';
+const APP_VERSION='2026-09-27-4';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
@@ -2231,8 +2237,33 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
    種類は設定で増やせる（S.jobs）。分数は種類ごとの候補から選ぶ（基本は def） */
 /* 題名が仕事の名前そのものなら「💼60分」だけ */
 const jbTag=a=>' <span class="jb">💼 '+(a.title===a.job.name?'':esc(a.job.name)+' ')+a.job.min+'分</span>';
+/* ================= Googleカレンダー（メイン・読むだけ） =================
+   自分のGASが CalendarApp で読んで返す。逆算の予定と同じ形（gcal:true）にして混ぜる。
+   直す・消すは Google 側で（ここからは書き換えない）。同期する中身（S）には入れない */
+let GEV=[], GEV_AT=0;
+try{const c=JSON.parse(localStorage.getItem('gyakusan.gcal')||'null');if(c){GEV=c.events||[];GEV_AT=c.at||0}}catch(e){}
+async function pullGcal(){
+  if(!syncKey||!navigator.onLine)return;
+  try{const r=await fetch(SYNC_URL+'?op=gcal&days=45&key='+encodeURIComponent(syncKey)+'&t='+Date.now());
+    const j=await r.json(); if(!j.ok)throw new Error(j.err);
+    GEV=j.events||[]; GEV_AT=Date.now();
+    try{localStorage.setItem('gyakusan.gcal',JSON.stringify({events:GEV,at:GEV_AT}))}catch(e){}
+    render();
+  }catch(e){}
+}
+const lk=t=>{const d=new Date(t);return ymd(d)+'T'+hm(d)};
+function gAnchors(){
+  return GEV.filter(e=>!e.allDay).map(e=>({id:'g:'+e.id,title:e.title,at:lk(e.start),gcal:true,
+    gmin:Math.max(0,Math.round((e.end-e.start)/60000)),addr:e.loc||'',lat:null,lng:null,mode:DEFMODE,travelMin:null,subs:[]}))
+   /* 逆算にも同じ時刻・同じ題名があれば、逆算の方だけ残す */
+   .filter(g=>!S.anchors.some(a=>a.at===g.at&&a.title===g.title));
+}
+const AN=()=>S.anchors.concat(gAnchors());
+const gAllDay=d0=>{const k=ymd(d0);return GEV.filter(e=>e.allDay&&ymd(new Date(e.start))<=k&&k<=ymd(new Date(e.end-1)))};
+const gTag=a=>a.gcal?' <span class="gt">G</span>':'';
+
 const jobList=()=>(S.jobs&&S.jobs.length?S.jobs:DEF.jobs);
-const jobEnd=a=>{const d=new Date(a.at);return a.job?plus(d,a.job.min):d};
+const jobEnd=a=>{const d=new Date(a.at);return a.job?plus(d,a.job.min):a.gmin?plus(d,a.gmin):d};
 function jobOf(name){return jobList().find(j=>j.name===name)}
 function setJob(id,name,min){
   const a=S.anchors.find(x=>x.id===id); if(!a)return;
@@ -2242,6 +2273,7 @@ function setJob(id,name,min){
 }
 let jobOpen=null;   /* 「＋仕事」を開いている予定 */
 function jobChips(a){
+  if(a.gcal)return '<div class="jobc"><span class="gt">G</span><span class="tiny">Googleカレンダーの予定（直す・消すはGoogle側で）</span></div>';
   const st='event.stopPropagation();';
   if(a.job){
     const j=jobOf(a.job.name), mins=(j&&j.mins)||[a.job.min];
@@ -2429,7 +2461,7 @@ function setSyncKey(v){
 function sharedState(){const o={};for(const k in S)if(!LOCAL_ONLY.includes(k))o[k]=S[k];return o}
 function buildSummary(){
   const now=new Date();
-  const fut=S.anchors.filter(a=>{const d=new Date(a.at);return !isNaN(d)&&d>now})
+  const fut=AN().filter(a=>{const d=new Date(a.at);return !isNaN(d)&&d>now})
     .sort((x,y)=>new Date(x.at)-new Date(y.at));
   const up=fut.filter(a=>!a.soft).slice(0,6);
   const soft=fut.filter(a=>a.soft).slice(0,6).map(a=>({title:a.title||'予定',at:new Date(a.at).getTime(),min:a.softMin||60}));
@@ -2437,7 +2469,7 @@ function buildSummary(){
   return {v:1,genAt:Date.now(),buffer:S.buffer||0,sleepOn:S.sleepOn!==false,soft,ideas,
     sleepPer:Math.round(((S.sleepH||0)+(S.sleepBufH||0))*60),
     items:up.map(a=>{const P=plan(a);const ok=hasPlace(a)&&!P.anchorUnknown;
-      return {id:a.id,title:a.title||'予定',at:P.A.d.getTime(),hasPlace:hasPlace(a),job:a.job||null,
+      return {id:a.id,title:a.title||'予定',at:P.A.d.getTime(),hasPlace:hasPlace(a),job:a.job||null,dur:a.gmin||null,gcal:!!a.gcal,
         toAnchor:Math.round(P.toAnchor),leaveAt:ok?P.leaveAt.getTime():null,
         work:Math.round(P.sum),
         subs:P.steps.map(x=>({t:x.s.title||'',min:Math.round(x.work+x.tv)}))}})};
@@ -2485,8 +2517,9 @@ async function pullNow(){
 }
 function syncNow(){if(!syncKey)return setSync('先に同期キーを入れてください',true);pullNow().then(()=>pushSoon())}
 syncField('sSyncKey',syncKey);
-pullNow();
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')pullNow()});
+pullNow(); pullGcal();
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){pullNow();if(Date.now()-GEV_AT>60000)pullGcal()}});
+setInterval(()=>{if(document.visibilityState==='visible')pullGcal()},5*60000);
 setInterval(()=>{if(document.visibilityState==='visible')pullNow()},30000);
 
 render();
