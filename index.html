@@ -303,6 +303,48 @@ input:focus,select:focus{border-color:var(--acc)}
 #alSheet .opt.main b{color:var(--acc)}
 #alSheet .warn{background:#241d13;border:1px solid #4a3a22;border-radius:10px;
   padding:10px 12px;font-size:12.5px;color:var(--warn);margin-bottom:10px;line-height:1.5}
+/* ===== やることの棚・プランナー ===== */
+#plMask{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;display:none}
+#plMask.on{display:block}
+#plSheet{position:fixed;left:50%;transform:translateX(-50%);bottom:0;z-index:101;width:min(460px,100%);box-sizing:border-box;
+  background:var(--panel);border:1px solid var(--line);border-radius:20px 20px 0 0;padding:16px 14px;
+  padding-bottom:calc(16px + env(safe-area-inset-bottom));display:none;max-height:90vh;overflow-y:auto}
+#plSheet.on{display:block}
+#plSheet h3{margin:0 0 2px;font-size:16px}
+#plSheet .sub{color:var(--dim);font-size:12.5px;margin-bottom:12px}
+.pday{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.pday b{flex:1;text-align:center;font-size:15px}
+.pday button{background:var(--panel2);border:1px solid var(--line);color:var(--tx);border-radius:10px;padding:7px 13px;font-size:14px;cursor:pointer}
+.pfix{background:#141a21;border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin-bottom:10px;font-size:12.5px;color:var(--dim)}
+.pfix div{padding:2px 0}
+.pfix b{color:var(--tx);font-variant-numeric:tabular-nums}
+.stchips{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:8px}
+.stchip{background:var(--panel2);border:1px solid var(--line);color:var(--dim);border-radius:99px;padding:8px 13px;font-size:13px;cursor:pointer;position:relative}
+.stchip.on{border-color:var(--acc);color:var(--tx);box-shadow:0 0 0 1px var(--acc) inset}
+.stchip i{font-style:normal;color:var(--dim2);font-size:11px;margin-left:5px}
+.stchip.on i{color:var(--acc)}
+.stchip em{font-style:normal;position:absolute;top:-6px;left:-4px;background:var(--acc);color:#08131f;border-radius:99px;
+  width:17px;height:17px;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.ptl{border-left:2px solid var(--line);margin:4px 0 0 6px;padding-left:12px}
+.ptl .pr{position:relative;padding:5px 0;font-size:13.5px}
+.ptl .pr:before{content:'';position:absolute;left:-17px;top:11px;width:8px;height:8px;border-radius:99px;background:var(--line)}
+.ptl .pr.k:before{background:var(--acc)}
+.ptl .pr.f:before{background:var(--warn)}
+.ptl .pr.mv{color:var(--dim)}
+.ptl .pr.mv:before{background:#3a4552}
+.ptl .pr b{font-variant-numeric:tabular-nums;margin-right:8px;color:var(--tx)}
+.pover{background:#2a1c1e;border:1px solid #55292d;border-radius:12px;padding:10px 12px;margin-top:10px;font-size:12.5px;color:#ffb0b0}
+.pover b{color:#fff}
+.stline{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line);
+  border-radius:12px;padding:9px 11px;margin-bottom:6px;font-size:13.5px}
+.stline .sn{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stline .sm{color:var(--acc);font-variant-numeric:tabular-nums;font-size:12.5px}
+.stline button{background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:8px;padding:3px 9px;font-size:12px;cursor:pointer}
+.calsim{background:var(--panel2);border:1px solid var(--acc);color:var(--acc);border-radius:11px;
+  padding:9px 12px;font-size:13px;font-weight:700;width:100%;margin:10px 0;cursor:pointer}
+.cnav{display:flex;align-items:center;gap:8px;margin:2px 0 8px}
+.cnav b{flex:1;text-align:center;color:var(--dim);font-size:13px}
+.cnav button{background:var(--panel2);border:1px solid var(--line);color:var(--tx);border-radius:9px;padding:5px 12px;font-size:13px;cursor:pointer}
 .two{display:flex;gap:8px}.two>*{flex:1}
 .addrbox{display:flex;gap:8px}
 .addrbox input{flex:1}
@@ -472,7 +514,7 @@ nav button.on{color:var(--acc)}
   <!-- ================= カレンダー ================= -->
   <section class="pg" id="pg-cal">
     <h2 class="tlh">カレンダー<span class="seg" id="calSeg">
-      <button data-v="3" onclick="setCal(3)">3日</button><button data-v="7" onclick="setCal(7)">1週間</button><button data-v="30" onclick="setCal(30)">1ヶ月</button></span></h2>
+      <button data-v="1" onclick="setCal(1)">1日</button><button data-v="3" onclick="setCal(3)">3日</button><button data-v="7" onclick="setCal(7)">1週間</button><button data-v="30" onclick="setCal(30)">1ヶ月</button></span></h2>
     <div id="calBody"></div>
   </section>
 
@@ -520,6 +562,34 @@ nav button.on{color:var(--acc)}
       <div id="plList"></div>
     </div>
 
+    <h2>🧺 やることの棚</h2>
+    <div class="card">
+      <p class="tiny">「髪切る」「買い物」「家で実験」みたいな、<b>いつかやるけど日が決まっていない</b>やつを、
+      かかる時間つきで置いておく棚です。ここに入れておくと、カレンダーの日を選んで
+      <b>「入れてみる」</b>を押すだけで、その日に入るか・何時からやればいいかが出ます。<br>
+      住所を入れると<b>移動時間も足して</b>計算します。空のままだと「どこでもできる＝移動ゼロ」の扱いです。
+      家でやることも、⚙の「★よく行く場所」に<b>家</b>を登録して住所欄で選んでおくと、帰る時間まで入ります。</p>
+      <div class="f">
+        <label>なにを</label>
+        <input type="text" id="kT" placeholder="例：髪切る / 買い物 / 家で実験">
+        <label>かかる時間（分）</label>
+        <div class="chips" id="kMinChips"></div>
+        <input type="number" id="kMin" value="60" min="5" step="5">
+        <label>住所（どこでもできるなら空のまま）</label>
+        <div class="chips plchips" id="kPlaceChips" style="display:none"></div>
+        <div class="addrbox">
+          <input type="text" id="kAddr" placeholder="例：駅前の美容院 / 近所のスーパー">
+          <button type="button" onclick="lookup('k')">調べる</button>
+        </div>
+        <div class="geo" id="kGeo"></div>
+        <label>行きかた</label>
+        <select id="kMode"></select>
+        <button class="btn" onclick="addStock()">＋ 棚に入れる</button>
+      </div>
+      <div style="height:10px"></div>
+      <div id="stList"></div>
+    </div>
+
     <h2>逆算のクセ</h2>
     <div class="card">
       <div class="f">
@@ -529,6 +599,11 @@ nav button.on{color:var(--acc)}
         <input type="number" id="sFudge" min="0" step="10" oninput="S.fudge=+this.value||0;save();render()">
         <label>移動時間の迂回補正（%）— 直線距離をこれだけ増やして道のりにする</label>
         <input type="number" id="sDet" min="0" step="5" oninput="S.detour=+this.value||0;save();render()">
+        <label>動ける時間帯 — プランナーはこの中だけに並べます</label>
+        <div class="two">
+          <input type="time" id="sDay0" oninput="S.dayStart=this.value||'08:00';save()">
+          <input type="time" id="sDay1" oninput="S.dayEnd=this.value||'23:00';save()">
+        </div>
       </div>
       <div style="height:14px"></div>
       <div class="chips">
@@ -617,6 +692,26 @@ nav button.on{color:var(--acc)}
   <button class="btn sec" onclick="closeAlarm()">今はいい</button>
 </div>
 
+<div id="plMask" onclick="closePlan()"></div>
+<div id="plSheet">
+  <h3>🧭 この日に入れてみる</h3>
+  <div class="sub">棚から選ぶと、固定の予定のすきまに<b>順番を入れ替えて</b>並べ直します。入れるまでは何も変わりません。</div>
+  <div class="pday">
+    <button onclick="planDay(-1)">‹</button><b id="plDate"></b><button onclick="planDay(1)">›</button>
+  </div>
+  <div id="plFix"></div>
+  <div class="stchips" id="plChips"></div>
+  <div class="addrbox" style="margin-bottom:10px">
+    <input type="text" id="plNew" placeholder="棚に無いものをその場で足す（例：髪切る 60分）">
+    <button type="button" onclick="planAddQuick()">＋棚へ</button>
+  </div>
+  <div id="plOut"></div>
+  <div style="height:10px"></div>
+  <button class="btn" id="plCommit" onclick="planCommit()">この時間割で予定に入れる</button>
+  <div style="height:8px"></div>
+  <button class="btn sec" onclick="closePlan()">閉じる</button>
+</div>
+
 <div id="hpMask" onclick="closeHere()"></div>
 <div id="hpSheet"><h3>いま、どこにいる？</h3><div class="sub">よく行く場所から選ぶと、そこを現在地として逆算します。</div><div id="hpBody"></div></div>
 <nav>
@@ -638,7 +733,8 @@ const KEY='gyakusan.v2', OLDKEY='gyakusan.v1';
 const DEF={hereName:'家', here:null, buffer:10, fudge:20, detour:25, anchors:[], trial:null, places:[],
   sleepOn:true, sleepH:7, sleepBufH:1,
   alarmShortcut:'逆算アラーム', alarmAsk:true, alarmPayload:'time',
-  jobs:[{id:'massa',name:'マッサ',mins:[60,90,120],def:60}], ideas:[]};
+  jobs:[{id:'massa',name:'マッサ',mins:[60,90,120],def:60}], ideas:[],
+  stock:[], dayStart:'08:00', dayEnd:'23:00'};
 let S=load();
 
 function load(){
@@ -988,7 +1084,7 @@ function usePlace(k,id){
 }
 function renderPlaceChips(){
   const ps=placeList();
-  ['a','s','i'].forEach(k=>{
+  ['a','s','i','k'].forEach(k=>{
     const el=document.getElementById(k+'PlaceChips'); if(!el)return;
     el.style.display=ps.length?'flex':'none';
     el.innerHTML=ps.map(p=>'<button type="button" class="chip pl" onclick="usePlace(\''+k+'\',\''+p.id+'\')">★ '
@@ -1050,7 +1146,7 @@ function savePlaceFromHere(){
 }
 
 /* 3つのフォーム（a=目標 / s=サブ / i=ひらめき / p=よく行く場所）共通の住所検索 */
-const GEOBUF={a:null,s:null,i:null,p:null};
+const GEOBUF={a:null,s:null,i:null,p:null,k:null};
 /* 調べた結果の見せ方。チップ・行きかたの変更・検索のどれからでもここを通す */
 function showGeo(k){
   const out=document.getElementById(k+'Geo'); if(!out)return;
@@ -1408,6 +1504,8 @@ function render(){
   syncField('sHere',S.hereName||''); syncField('sBuf',S.buffer); syncField('sFudge',S.fudge); syncField('sDet',S.detour);
   syncField('sAlName',S.alarmShortcut||'');
   syncField('sSleepH',S.sleepH); syncField('sSleepBuf',S.sleepBufH);
+  syncField('sDay0',S.dayStart||'08:00'); syncField('sDay1',S.dayEnd||'23:00');
+  renderStock();
   const slb=document.getElementById('sSleepOn'); if(slb)slb.classList.toggle('on',S.sleepOn!==false);
   const alb=document.getElementById('sAlAsk'); if(alb)alb.classList.toggle('on',S.alarmAsk!==false);
   const alf=document.getElementById('sAlFull'); if(alf)alf.classList.toggle('on',S.alarmPayload==='full');
@@ -2090,9 +2188,10 @@ function cancelEditSub(){
 /* ================= カレンダー =================
    3日・1週間は日ごとの縦の列（時間の目盛り＋予定の帯）。1ヶ月はマス目で、日を押すとその日の一覧。
    見る範囲は端末ごとに覚える */
-let calView=7, calPick=null, calMonth=null;
+let calView=7, calPick=null, calMonth=null, calOff=0;
 try{calView=+(localStorage.getItem('gyakusan.calView')||7)}catch(e){}
-function setCal(v){calView=v;calPick=null;try{localStorage.setItem('gyakusan.calView',String(v))}catch(e){};renderCal()}
+function setCal(v){calView=v;calPick=null;calOff=0;try{localStorage.setItem('gyakusan.calView',String(v))}catch(e){};renderCal()}
+function calShift(n){calOff=n===0?0:calOff+n*(calView===1?1:calView);renderCal()}
 const dayKey=d=>ymd(d);
 function eventsOn(d0){   /* その日に始まる予定（確定・未確定） */
   const k=dayKey(d0);
@@ -2105,12 +2204,12 @@ function renderCal(){
   document.querySelectorAll('#calSeg button').forEach(b=>b.classList.toggle('on',+b.dataset.v===calView));
   const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
   if(calView===30){el.innerHTML=calMonthHTML(today,now);return}
-  const days=[...Array(calView)].map((_,i)=>{const d=new Date(today);d.setDate(d.getDate()+i);return d});
+  const days=[...Array(calView)].map((_,i)=>{const d=new Date(today);d.setDate(d.getDate()+calOff+i);return d});
   /* 時間の範囲：ふだんは 8〜23時。予定がはみ出す時は広げる */
   let h0=8,h1=23;
   days.forEach(d=>eventsOn(d).forEach(x=>{h0=Math.min(h0,x.s.getHours());h1=Math.max(h1,Math.ceil(x.e.getHours()+x.e.getMinutes()/60))}));
   h1=Math.min(h1,26);
-  const PX=calView===3?40:30, top=h=>(h-h0)*PX;
+  const PX=calView===1?54:calView===3?40:30, top=h=>(h-h0)*PX;
   let g='<div class="cgrid" style="--n:'+calView+'"><div class="chours" style="height:'+((h1-h0)*PX+24)+'px">';
   for(let h=h0;h<=h1;h++)g+='<div style="top:'+(top(h)+24)+'px">'+(h%24)+'</div>';
   g+='</div>';
@@ -2130,7 +2229,16 @@ function renderCal(){
     });
     g+='</div>';
   });
-  el.innerHTML=g+'</div>'+calListHTML(days,now);
+  const lbl=calView===1
+    ? (days[0].getMonth()+1)+'/'+days[0].getDate()+'（'+DOW[days[0].getDay()]+'）'+(calOff===0?' 今日':'')
+    : (days[0].getMonth()+1)+'/'+days[0].getDate()+' 〜 '+(days[calView-1].getMonth()+1)+'/'+days[calView-1].getDate();
+  const nav='<div class="cnav"><button onclick="calShift(-1)">‹</button>'
+    +'<b>'+lbl+'</b>'
+    +(calOff?'<button onclick="calShift(0)">今日</button>':'')
+    +'<button onclick="calShift(1)">›</button></div>';
+  const simBtn='<button class="calsim" onclick="openPlan(\''+dayKey(days[0])+'\')">🧭 '
+    +(calView===1?'この日':(days[0].getMonth()+1)+'/'+days[0].getDate())+'に、やることを入れてみる</button>';
+  el.innerHTML=nav+g+'</div>'+simBtn+calListHTML(days,now);
 }
 function calListHTML(days,now){   /* 下に文字でも（小さい列だと読めないので） */
   let h='<div class="clist">';
@@ -2158,7 +2266,9 @@ function calMonthHTML(today,now){
       +(L.length>3?'<em>+'+(L.length-3)+'</em>':'')+'</div>';
   }
   h+='</div>';
-  if(calPick){const [yy,mm,dd]=calPick.split('-').map(Number); h+=calListHTML([new Date(yy,mm-1,dd)],now)
+  if(calPick){const [yy,mm,dd]=calPick.split('-').map(Number);
+    h+='<button class="calsim" onclick="openPlan(\''+calPick+'\')">🧭 '+mm+'/'+dd+' に、やることを入れてみる</button>';
+    h+=calListHTML([new Date(yy,mm-1,dd)],now)
     +(eventsOn(new Date(yy,mm-1,dd)).length||gAllDay(new Date(yy,mm-1,dd)).length?'':'<div class="tiny" style="padding:8px 4px">この日は予定なし</div>')}
   return h;
 }
@@ -2235,7 +2345,7 @@ function importBackup(input){
 
 /* ================= UI 配線 ================= */
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{showTab(b.dataset.p);window.scrollTo(0,0)});
-['aMode','sMode','iMode','pMode'].forEach(id=>{
+['aMode','sMode','iMode','pMode','kMode'].forEach(id=>{
   const e=document.getElementById(id); if(!e)return;
   e.innerHTML=Object.keys(MODES).map(k=>'<option value="'+k+'">'+MODES[k].n+'</option>').join('');
   e.value=DEFMODE;
@@ -2250,6 +2360,7 @@ function chipRow(el,input,vals){
 }
 chipRow(document.getElementById('sMinChips'),document.getElementById('sMin'),[10,15,30,60,90,120]);
 chipRow(document.getElementById('iMinChips'),document.getElementById('iMin'),[30,60,120,180,240]);
+chipRow(document.getElementById('kMinChips'),document.getElementById('kMin'),[15,30,45,60,90,120]);
 
 function aClearChips(){document.querySelectorAll('#aQuickChips .chip,#aDateChips .chip').forEach(c=>c.classList.remove('on'))}
 function aSetDate(off){
@@ -2277,8 +2388,259 @@ function aSetQuick(m){
   aSetQuick(180);
 })();
 
+
+/* ======================================================================
+   🧺 やることの棚 ＋ 🧭 プランナー
+   棚＝日の決まっていない「やること」をかかる時間つきで置いておく箱。
+   プランナー＝ある日の固定の予定（授業・仕事・Google）のすきまに、
+   棚から選んだやつを「順番を入れ替えて」いちばんムダなく入る並びに並べ直す。
+   ぜんぶその場の算数。外には何も送らない（AIは使っていない）。
+   ====================================================================== */
+const stockList=()=>(S.stock=S.stock||[]);
+
+function addStock(){
+  const t=document.getElementById('kT').value.trim();
+  if(!t)return alert('なにをやるか書いてね');
+  const min=+document.getElementById('kMin').value||60;
+  const mode=document.getElementById('kMode').value;
+  const typed=document.getElementById('kAddr').value.trim();
+  const r=resolveAddr(typed,GEOBUF.k,null);
+  stockList().push({id:uid(),title:t,min,addr:r.addr||'',lat:r.lat,lng:r.lng,mode,travelMin:r.travelMin});
+  GEOBUF.k=null;
+  document.getElementById('kT').value=''; document.getElementById('kAddr').value='';
+  document.querySelectorAll('#kMinChips .chip').forEach(c=>c.classList.remove('on'));
+  showGeo('k'); save(); render(); toast('🧺 棚に入れた');
+}
+function delStock(id){
+  const it=stockList().find(x=>x.id===id); if(!it)return;
+  if(!confirm('「'+it.title+'」を棚から外す？'))return;
+  S.stock=stockList().filter(x=>x.id!==id);
+  planPicks=planPicks.filter(p=>p!==id);
+  save(); render(); if(document.getElementById('plSheet').classList.contains('on'))renderPlan();
+}
+function stockMin(id,v){
+  const it=stockList().find(x=>x.id===id); if(!it)return;
+  it.min=Math.max(5,+v||5); save();
+  if(document.getElementById('plSheet').classList.contains('on'))renderPlan();
+}
+function renderStock(){
+  const el=document.getElementById('stList'); if(!el||el.contains(document.activeElement))return;
+  const L=stockList();
+  el.innerHTML=L.length ? L.map(x=>'<div class="stline">'
+      +'<span class="sn">'+esc(x.title)+(x.addr?' <span style="color:#5f6c7a;font-size:11px">📍'+esc(shortAddr(x.addr))+'</span>':'')+'</span>'
+      +'<input type="number" value="'+x.min+'" min="5" step="5" style="width:62px;padding:5px;font-size:12.5px" onchange="stockMin(\''+x.id+'\',this.value)">'
+      +'<span class="sm">分</span>'
+      +'<button onclick="delStock(\''+x.id+'\')">外す</button></div>').join('')
+    : '<div class="tiny">まだ空っぽ。上から「髪切る 60分」みたいに入れておくと、カレンダーの日を選んですぐ試せます。</div>';
+}
+
+/* ---------- プランナーの土台 ---------- */
+let planDate=null, planPicks=[], planLast=null;
+const locOf=o=>(o&&o.lat!=null&&o.lng!=null)?{lat:o.lat,lng:o.lng,mode:o.mode}:null;
+function travelTo(from,to){        /* 分。どちらかの場所が分からなければ 0（移動なし扱い） */
+  if(!from||!to)return 0;
+  const L=legMin(from,to,to.mode||from.mode); return L?L.min:0;
+}
+function dayBounds(ds){
+  const [y,m,d]=ds.split('-').map(Number);
+  const p=(S.dayStart||'08:00').split(':'), q=(S.dayEnd||'23:00').split(':');
+  let s0=new Date(y,m-1,d,+p[0],+p[1],0,0);
+  const e0=new Date(y,m-1,d,+q[0],+q[1],0,0);
+  const now=new Date();
+  if(ymd(now)===ds&&now>s0)s0=new Date(Math.ceil(now.getTime()/300000)*300000);  /* 今日なら「いま」から */
+  return {s:s0,e:e0};
+}
+/* その日の動かせない予定（逆算の予定＋Google。プランナーが前に入れた分は除く） */
+function dayFixed(ds){
+  const [y,m,d]=ds.split('-').map(Number);
+  return eventsOn(new Date(y,m-1,d)).filter(x=>!x.a.planned)
+    .map(x=>({s:x.s,e:x.e,a:x.a})).sort((a,b)=>a.s-b.s);
+}
+/* すきま。各すきまに「入口の場所」と「出口で居なきゃいけない場所」を持たせる */
+function dayGaps(ds){
+  const W=dayBounds(ds), fx=dayFixed(ds);
+  const gaps=[]; let cur=new Date(W.s), loc=locOf(S.here?{lat:S.here.lat,lng:S.here.lng,mode:DEFMODE}:null);
+  fx.forEach(f=>{
+    const fs=f.s<W.s?W.s:f.s;
+    if(fs>cur&&cur<W.e)gaps.push({s:new Date(cur),e:new Date(Math.min(fs,W.e)),from:loc,to:locOf(f.a),toTitle:f.a.title});
+    if(f.e>cur)cur=new Date(f.e);
+    if(locOf(f.a))loc=locOf(f.a);
+  });
+  if(cur<W.e)gaps.push({s:new Date(cur),e:new Date(W.e),from:loc,to:null,toTitle:''});
+  return gaps.filter(g=>g.e-g.s>=5*60000);
+}
+/* 並び order で詰めてみる。入らなかったものは fail に落ちる */
+function packOrder(order,gaps){
+  const G=gaps.map(g=>({s:new Date(g.s),e:g.e,cur:new Date(g.s),loc:g.from,to:g.to,toTitle:g.toTitle}));
+  const placed=[], fail=[]; let move=0;
+  order.forEach(it=>{
+    let ok=false;
+    for(const g of G){
+      const tin=travelTo(g.loc,locOf(it));
+      const st=plus(g.cur,tin), en=plus(st,fudged(it.min));
+      const tout=g.to?travelTo(locOf(it)||g.loc,g.to):0;
+      if(plus(en,tout)<=g.e){
+        placed.push({it,s:st,e:en,tin,tout,gap:g});
+        g.cur=en; if(locOf(it))g.loc=locOf(it);
+        move+=tin; ok=true; break;
+      }
+    }
+    if(!ok)fail.push(it);
+  });
+  G.forEach(g=>{
+    if(!g.to||!placed.some(p=>p.gap===g))return;
+    const mn=travelTo(g.loc,g.to);
+    if(mn)g.exit={at:plus(g.cur,0),min:mn,title:g.toTitle,leave:plus(g.cur,0)};
+  });
+  placed.sort((a,b)=>a.s-b.s);
+  const endAt=placed.length?placed[placed.length-1].e:null;
+  return {placed,fail,move,endAt,gaps:G};
+}
+function permute(a){
+  if(a.length<=1)return [a];
+  const out=[];
+  a.forEach((x,i)=>permute(a.slice(0,i).concat(a.slice(i+1))).forEach(r=>out.push([x].concat(r))));
+  return out;
+}
+/* いちばんマシな並びを探す：①入らない数が少ない ②移動が短い ③早く終わる */
+function bestPlan(items,gaps){
+  if(!items.length)return {placed:[],fail:[],move:0,endAt:null};
+  let cands;
+  if(items.length<=6)cands=permute(items);                       /* 720通りまでは総当たり */
+  else{                                                          /* それ以上はランダムに回す */
+    cands=[items.slice()];
+    for(let i=0;i<300;i++){const a=items.slice();
+      for(let j=a.length-1;j>0;j--){const k=Math.floor(Math.random()*(j+1));[a[j],a[k]]=[a[k],a[j]]}
+      cands.push(a)}
+  }
+  let best=null;
+  cands.forEach(o=>{
+    const r=packOrder(o,gaps);
+    if(!best)return void(best=r);
+    const key=x=>[x.fail.length,x.move,x.endAt?x.endAt.getTime():0];
+    const a=key(r), b=key(best);
+    for(let i=0;i<3;i++){ if(a[i]<b[i]){best=r;return} if(a[i]>b[i])return }
+  });
+  return best;
+}
+
+/* ---------- プランナーの画面 ---------- */
+function openPlan(ds){
+  planDate=ds||ymd(new Date());
+  document.getElementById('plMask').classList.add('on');
+  document.getElementById('plSheet').classList.add('on');
+  renderPlan();
+}
+function closePlan(){
+  document.getElementById('plMask').classList.remove('on');
+  document.getElementById('plSheet').classList.remove('on');
+}
+function planDay(n){
+  const [y,m,d]=planDate.split('-').map(Number);
+  const nd=new Date(y,m-1,d+n); planDate=ymd(nd); renderPlan();
+}
+function planPick(id){
+  const i=planPicks.indexOf(id);
+  if(i>=0)planPicks.splice(i,1); else planPicks.push(id);
+  renderPlan();
+}
+function planAddQuick(){
+  const el=document.getElementById('plNew'), v=el.value.trim(); if(!v)return;
+  const m=v.match(/(\d+)\s*(分|ふん|min)?\s*$/);
+  const min=m?+m[1]:60, title=(m?v.slice(0,m.index):v).trim()||v;
+  const it={id:uid(),title,min,addr:'',lat:null,lng:null,mode:DEFMODE,travelMin:null};
+  stockList().push(it); planPicks.push(it.id);
+  el.value=''; save(); render(); renderPlan(); toast('🧺 棚に入れて、選んだ');
+}
+function renderPlan(){
+  const [y,m,d]=planDate.split('-').map(Number), dd=new Date(y,m-1,d);
+  document.getElementById('plDate').textContent=m+'/'+d+'（'+DOW[dd.getDay()]+'）'
+    +(planDate===ymd(new Date())?' 今日':'');
+
+  /* その日の固定 */
+  const fx=dayFixed(planDate), W=dayBounds(planDate);
+  document.getElementById('plFix').innerHTML='<div class="pfix">'
+    +'<div>動ける時間帯：<b>'+hm(W.s)+'〜'+hm(W.e)+'</b></div>'
+    +(fx.length
+      ? fx.map(f=>'<div>'+(f.a.gcal?'G ':f.a.job?'💼 ':'⚑ ')+'<b>'+hm(f.s)+'–'+hm(f.e)+'</b> '+esc(f.a.title)+'</div>').join('')
+      : '<div>この日は固定の予定なし＝まるごと空いてる</div>')
+    +'</div>';
+
+  /* 棚のチップ */
+  const L=stockList();
+  document.getElementById('plChips').innerHTML=L.length
+    ? L.map(x=>{const n=planPicks.indexOf(x.id);
+        return '<button type="button" class="stchip'+(n>=0?' on':'')+'" onclick="planPick(\''+x.id+'\')">'
+          +(n>=0?'<em>'+(n+1)+'</em>':'')+esc(x.title)+'<i>'+x.min+'分</i></button>'}).join('')
+    : '<div class="tiny">棚が空っぽです。下の欄か、⚙設定の「やることの棚」から入れてください。</div>';
+
+  /* 計算 */
+  const picks=planPicks.map(id=>L.find(x=>x.id===id)).filter(Boolean);
+  const out=document.getElementById('plOut'), btn=document.getElementById('plCommit');
+  if(!picks.length){
+    out.innerHTML='<div class="tiny" style="padding:6px 2px">上から選ぶと、ここに時間割が出ます。</div>';
+    btn.style.display='none'; planLast=null; return;
+  }
+  const gaps=dayGaps(planDate);
+  const R=bestPlan(picks,gaps);
+  planLast={ds:planDate,R};
+  const total=picks.reduce((t,x)=>t+fudged(x.min),0);
+
+  let h='<div class="vd '+(R.fail.length?'n':'y')+'" style="padding:14px">'
+    +'<div class="h" style="font-size:17px;font-weight:800">'
+    +(R.fail.length?R.fail.length+'個 入らない':'ぜんぶ入る')+'</div>'
+    +'<div class="muted" style="font-size:13px;margin-top:4px">'
+    +(R.fail.length
+      ? '選んだ '+dur(total)+' ぶんは、並べ替えてもこの日には収まりませんでした。'
+      : hm(R.placed[0].s)+' に始めれば、'+hm(R.endAt)+' に終わります（やること '+dur(total)+'＋移動 '+dur(R.move)+'）。')
+    +'</div></div>';
+
+  /* 時間割（固定とまぜて時間順に） */
+  const rows=[];
+  R.placed.forEach(p=>{
+    if(p.tin)rows.push({t:plus(p.s,-p.tin),c:'mv',h:'🚶 移動 '+dur(p.tin)});
+    rows.push({t:p.s,c:'k',h:'<b>'+hm(p.s)+'–'+hm(p.e)+'</b>'+esc(p.it.title)+' <span style="color:#8d9aa8">'+dur(fudged(p.it.min))+'</span>'});
+  });
+  (R.gaps||[]).forEach(g=>{ if(g.exit)
+    rows.push({t:g.exit.leave,c:'mv',h:'🚶 ここで出る → '+esc(g.exit.title)+'（移動 '+dur(g.exit.min)+'）'}); });
+  fx.forEach(f=>rows.push({t:f.s,c:'f',h:'<b>'+hm(f.s)+'–'+hm(f.e)+'</b>'+(f.a.gcal?'G ':f.a.job?'💼 ':'⚑ ')+esc(f.a.title)}));
+  rows.sort((a,b)=>a.t-b.t);
+  h+='<div class="ptl">'+rows.map(r=>'<div class="pr '+r.c+'">'+(r.c==='mv'?'<b>'+hm(r.t)+'</b>':'')+r.h+'</div>').join('')+'</div>';
+
+  if(R.fail.length){
+    const need=R.fail.reduce((t,x)=>t+fudged(x.min),0);
+    h+='<div class="pover">入らなかった：<b>'+R.fail.map(x=>esc(x.title)).join('・')+'</b>（合わせて '+dur(need)+'）'
+      +'<br>どうする？<br>・別の日に回す（‹ › で日を変えて試す）'
+      +'<br>・時間を短く見積もる（棚の分数を直す）'
+      +'<br>・動ける時間帯を広げる（⚙設定）</div>';
+  }
+  const nowhere=picks.filter(x=>x.lat==null);
+  if(nowhere.length)h+='<div class="tiny" style="margin-top:8px;color:#8d9aa8">※ '
+    +nowhere.map(x=>esc(x.title)).join('・')+' は住所が無いので<b>「どこでもできる＝移動ゼロ」</b>として置いています。'
+    +'家でやることなら、⚙設定で「家」をよく行く場所に登録して棚の住所に入れると、帰る時間も入ります。</div>';
+  out.innerHTML=h;
+  btn.style.display=R.placed.length?'':'none';
+  btn.textContent='この時間割で予定に入れる（'+R.placed.length+'件）';
+}
+/* 入れる＝◌（ずらせる予定）としてその日に置く。確定の逆算は邪魔しない */
+function planCommit(){
+  if(!planLast||!planLast.R.placed.length)return;
+  const ds=planLast.ds, R=planLast.R;
+  const before=S.anchors.filter(a=>a.planned&&String(a.at).slice(0,10)===ds).length;
+  if(before&&!confirm('この日に前へ入れた「🧭入れてみる」の '+before+'件 を、今の時間割で置き換えます。よろしいですか？'))return;
+  S.anchors=S.anchors.filter(a=>!(a.planned&&String(a.at).slice(0,10)===ds));
+  R.placed.forEach(p=>{
+    S.anchors.push({id:uid(),title:p.it.title,at:isoLocal(p.s),soft:true,softMin:Math.round((p.e-p.s)/60000),
+      planned:true,addr:p.it.addr||'',lat:p.it.lat,lng:p.it.lng,mode:p.it.mode||DEFMODE,
+      travelMin:p.it.travelMin!=null?p.it.travelMin:null,subs:[]});
+  });
+  save(); render(); closePlan(); showTab('cal'); renderCal();
+  toast('🧭 '+R.placed.length+'件を ◌ で入れた');
+}
+const isoLocal=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
+
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-09-28-3';
+const APP_VERSION='2026-10-03-1';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
