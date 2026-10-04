@@ -70,7 +70,9 @@ html.mini .qa{padding:8px 10px!important}
 
 /* hero + ledger */
 .hero{background:linear-gradient(160deg,#1b2531,#151a21);border:1px solid #2c3947;border-radius:20px;padding:18px;margin-bottom:12px}
-.hero .lbl{font-size:13px;color:var(--dim);margin-bottom:2px}
+.hero{position:relative}
+.hero .hx{position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:99px;background:transparent;border:1px solid #33414f;color:var(--dim);font-size:15px;line-height:1;cursor:pointer}
+.hero .lbl{font-size:13px;color:var(--dim);margin-bottom:2px;padding-right:34px}
 .hero .big{font-size:38px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.15}
 .hero .sub{font-size:14px;color:var(--dim);margin-top:8px}
 .hero.go{background:linear-gradient(160deg,#3a1f22,#241417);border-color:#5e2c30}
@@ -1244,6 +1246,9 @@ const WD='日月火水木金土';
 function parseNL(raw,kind){
   const now=new Date();
   let s=' '+Z2H(raw||'').trim()+' ';
+  /* 「16時に渋谷駅」のように時刻と場所がくっついていると、場所の方に時刻まで吸われる。先に切り離す */
+  s=s.replace(/(\d{1,2}\s*(?:時(?!間)|:)\s*(?:\d{1,2}\s*分?)?\s*半?)\s*(?:に|から|〜|~)?(?=[^\s\d、。])/g,'$1 ');
+  s=s.replace(/(\d+\s*(?:時間\s*半?|分)\s*(?:\d+\s*分)?\s*後)\s*(?:に|から)?(?=[^\s\d、。])/g,'$1 ');
   const R={title:'',date:null,time:null,dur:null,addr:'',found:[]};
   const eat=(re,fn)=>{
     const m=s.match(re); if(!m)return false;
@@ -1634,6 +1639,7 @@ function renderNow(P){
     : hasPlace(A) ? ' <b style="color:#ffb454">🚶 移動 ?分（現在地がまだ）</b>'
     : ' <b style="color:#ffb454">🚶 移動時間まだ</b>';
   h+='<div class="hero'+(late?' go':'')+'">'
+    +(A.gcal?'':'<button class="hx" title="この約束を消す" onclick="delQuick(\''+A.id+'\')">×</button>')
     +'<div class="lbl">'+esc(A.title)+gTag(A)+'（'+hm(A.d)+(A.addr?' ・'+esc(shortAddr(A.addr)):'')+'）まで'
     +goTag+'</div>'
     +'<div class="big'+(late?'':' ok')+'"><span class="pre">'+(late?'足りない':'のこり')+'</span>'
@@ -2640,7 +2646,7 @@ function planCommit(){
 const isoLocal=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-10-03-1';
+const APP_VERSION='2026-10-04-1';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
