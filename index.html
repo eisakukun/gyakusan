@@ -843,6 +843,17 @@ window.gyakusanMac=function(o){
     }
   }
   if(o.routes)MACR=o.routes;
+  /* 行き先が文字だけだった約束：Mac が Apple の地図で見つけた座標を入れる。S に入れて同期＝iPhoneでも移動時間が出る */
+  if(o.found){
+    let ch=false; S.gloc=S.gloc||{};
+    for(const q in o.found){
+      const f=o.found[q]; if(!f||f.lat==null)continue;
+      const g=S.gloc[q];
+      if(!g||Math.abs(g.lat-f.lat)>1e-6||Math.abs(g.lng-f.lng)>1e-6){S.gloc[q]={lat:f.lat,lng:f.lng,label:f.label||q,by:'apple'};ch=true}
+      for(const a of S.anchors)if(a.lat==null&&a.addr&&String(a.addr).trim()===q){a.lat=f.lat;a.lng=f.lng;ch=true}
+    }
+    if(ch){save();render();return}
+  }
   render();
 };
 function pickHere(){
@@ -1636,7 +1647,7 @@ function renderNow(P){
   const goTag=goDirect
     ? ' <b style="color:#6aa9ff">🚶 ここから '+esc(goMode)+'で 約'+dur(goDirect.min)
       +(goDirect.km!=null?'（'+goDirect.km.toFixed(1)+'km）':'')+'</b>'
-    : hasPlace(A) ? ' <b style="color:#ffb454">🚶 移動 ?分（現在地がまだ）</b>'
+    : hasPlace(A) ? ' <b style="color:#ffb454">🚶 移動 ?分（'+(S.here&&S.here.lat!=null&&A.lat==null?'行き先が地図で見つからない':'現在地がまだ')+'）</b>'
     : ' <b style="color:#ffb454">🚶 移動時間まだ</b>';
   h+='<div class="hero'+(late?' go':'')+'">'
     +(A.gcal?'':'<button class="hx" title="この約束を消す" onclick="delQuick(\''+A.id+'\')">×</button>')
@@ -1651,6 +1662,8 @@ function renderNow(P){
           +' → ⏰ <b style="color:#e8edf3">'+hmD(P.wakeAt,P.now)+'</b> 起き'
           +' → '+(P.toAnchor?'🚶 <b style="color:#e8edf3">'+hmD(P.leaveAt,P.now)+'</b> に出る':'<b style="color:#e8edf3">'+hmD(P.leaveAt,P.now)+'</b> に動き出す')
           +(P.steps.length?'。<br>やることは <b style="color:#e8edf3">'+hm(P.startBy)+'</b> までに始めれば間に合う':'')+'。'
+        : P.anchorUnknown
+          ? '移動時間が分からないので、<b style="color:#ffb454">出る時刻はまだ出せない</b>（'+hm(P.startBy)+' は移動0分のときの話）。行き先の住所を入れるか、Macで開くと Apple の地図で探す。'
         : '全部やるなら <b style="color:#e8edf3">'+hm(P.startBy)+'</b> までに'
           +(P.toAnchor?'<b style="color:#e8edf3">出れば</b>いい（'+esc(goMode)+' '+dur(P.toAnchor)+'＋余裕'+dur(P.buffer)+'）。'
                       :'動き出せばいい。'))+'</div>'
@@ -2646,7 +2659,7 @@ function planCommit(){
 const isoLocal=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-10-04-1';
+const APP_VERSION='2026-10-06-1';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
@@ -2695,6 +2708,7 @@ function gLocOf(loc){
   loc=String(loc||'').trim(); if(!loc)return null;
   const p=findPlace(loc)||findPlace(loc.split(/[,、，]/)[0]);
   if(p&&p.lat!=null)return {lat:p.lat,lng:p.lng,name:p.name,travelMin:p.travelMin,mode:p.mode};
+  const m=(S.gloc||{})[loc]; if(m&&m.lat!=null)return m;   /* Macが Apple の地図で見つけたもの（iPhoneにも同期） */
   const c=GLOC[loc]; return c&&c.lat!=null?c:null;
 }
 /* 「カスティル渋谷, 日本、〒150-0011 東京都渋谷区東１丁目２２−６」→ 住所の部分、名前の部分、全体の順に試す */
@@ -2947,6 +2961,7 @@ function buildSummary(){
       return {id:a.id,title:a.title||'予定',at:P.A.d.getTime(),hasPlace:hasPlace(a),job:a.job||null,dur:a.gmin||null,gcal:!!a.gcal,
         toAnchor:Math.round(P.toAnchor),leaveAt:ok?P.leaveAt.getTime():null,
         lat:a.lat,lng:a.lng,mode:a.mode||DEFMODE,tm:a.travelMin!=null,
+        addr:a.lat==null&&a.addr?String(a.addr).trim():undefined,   /* 座標が無い行き先は、Macが Apple の地図で探す */
         via:(()=>{const v=P.steps.filter(x=>x.s.lat!=null).pop();return v?{lat:v.s.lat,lng:v.s.lng}:null})(),
         work:Math.round(P.sum),
         subs:P.steps.map(x=>({t:x.s.title||'',min:Math.round(x.work+x.tv)}))}})};
