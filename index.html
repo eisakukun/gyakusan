@@ -852,6 +852,12 @@ window.gyakusanMac=function(o){
       if(!g||Math.abs(g.lat-f.lat)>1e-6||Math.abs(g.lng-f.lng)>1e-6){S.gloc[q]={lat:f.lat,lng:f.lng,label:f.label||q,by:'apple'};ch=true}
       for(const a of S.anchors)if(a.lat==null&&a.addr&&String(a.addr).trim()===q){a.lat=f.lat;a.lng=f.lng;ch=true}
     }
+    /* Mac が覚えるのをやめた場所（名前が合わない取り違え等）は、ここと iPhone からも消す */
+    for(const q in S.gloc){
+      const g=S.gloc[q]; if(!g||g.by!=='apple'||o.found[q])continue;
+      for(const a of S.anchors)if(a.addr&&String(a.addr).trim()===q&&a.lat===g.lat&&a.lng===g.lng){a.lat=null;a.lng=null}
+      delete S.gloc[q]; ch=true;
+    }
     if(ch){save();render();return}
   }
   render();
@@ -2659,7 +2665,7 @@ function planCommit(){
 const isoLocal=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-10-06-1';
+const APP_VERSION='2026-10-16-1';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
