@@ -820,13 +820,28 @@ const IN_HS=!!(window.webkit&&window.webkit.messageHandlers&&window.webkit.messa
 /* Macの小窓の中だけ。ハンマースプーンが Macの居場所（Wi-Fiから）と、Apple純正の地図で出した移動時間
    （電車は時刻表どおり）を流し込んでくる。自分で★から選んだ場所は2時間は上書きしない */
 let MACR={};
+/* iPhone など Mac の外：Mac の小窓が同期の棚に置いた Apple 地図の時間（aroutes）を借りる。
+   出発点が 1km 以内のときだけ（家で Mac と一緒にいるとき）。外に出ていれば今まで通り直線からの概算 */
+let AROUTES={}; try{AROUTES=JSON.parse(localStorage.getItem('gyakusan.aroutes')||'{}')||{}}catch(e){}
 function macRoute(A,cur){
-  const r=MACR[A.id]; if(!r||!A.lat)return null;
-  if(Date.now()-r.got>20*60000)return null;                        /* 古い */
+  const mine=IN_HS, r=mine?MACR[A.id]:AROUTES[A.id]; if(!r||!A.lat)return null;
+  if(Date.now()-r.got>(mine?20:90)*60000)return null;              /* 古い */
   if(Math.abs(r.at-new Date(A.at).getTime())>60000)return null;    /* 時刻が変わった */
   if(Math.abs(r.tlat-A.lat)>1e-4||Math.abs(r.tlng-A.lng)>1e-4)return null;   /* 行き先が変わった */
-  if(cur&&cur.lat!=null&&Math.abs(r.flat-cur.lat)+Math.abs(r.flng-cur.lng)>0.003)return null;   /* 出発点が違う（寄り道・★で選んだ等） */
+  if(cur&&cur.lat!=null){                                           /* 出発点が違う（寄り道・★で選んだ・外にいる等） */
+    if(mine?Math.abs(r.flat-cur.lat)+Math.abs(r.flng-cur.lng)>0.003:kmBetween(cur,{lat:r.flat,lng:r.flng})>1)return null;
+  }else if(!mine)return null;
   return r;
+}
+/* Mac の小窓だけ：Apple 地図の時間を棚に置く（中身が変わったときか10分ごと） */
+let _arSig='', _arAt=0;
+function shareRoutes(routes){
+  if(!IN_HS||!syncKey||!navigator.onLine||!routes)return;
+  const sig=JSON.stringify(Object.keys(routes).sort().map(k=>{const r=routes[k];return [k,r.min,r.at,r.tlat,r.tlng,r.flat&&r.flat.toFixed(3),r.flng&&r.flng.toFixed(3)]}));
+  if(sig===_arSig&&Date.now()-_arAt<10*60000)return;
+  _arSig=sig; _arAt=Date.now();
+  fetch(SYNC_URL+'?op=routes&key='+encodeURIComponent(syncKey),
+    {method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({routes})}).catch(()=>{_arSig=''});
 }
 window.gyakusanMac=function(o){
   if(!IN_HS||!o)return;
@@ -842,7 +857,7 @@ window.gyakusanMac=function(o){
       S.hereNameManual=false;
     }
   }
-  if(o.routes)MACR=o.routes;
+  if(o.routes){MACR=o.routes;shareRoutes(o.routes)}
   /* 行き先が文字だけだった約束：Mac が Apple の地図で見つけた座標を入れる。S に入れて同期＝iPhoneでも移動時間が出る */
   if(o.found){
     let ch=false; S.gloc=S.gloc||{};
@@ -2671,7 +2686,7 @@ function planCommit(){
 const isoLocal=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-10-16-3';
+const APP_VERSION='2026-10-16-4';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
@@ -3012,6 +3027,10 @@ async function pullNow(){
       _pulling=false; S.updatedAt=0; return pullNow();
     }
     try{localStorage.setItem('gyakusan.synced','1')}catch(e){}
+    if(!IN_HS&&j.aroutes&&j.aroutes.routes){
+      const was=JSON.stringify(AROUTES); AROUTES=j.aroutes.routes;
+      if(JSON.stringify(AROUTES)!==was){try{localStorage.setItem('gyakusan.aroutes',JSON.stringify(AROUTES))}catch(e){} render()}
+    }
     if(j.state&&j.updatedAt>mine){
       const keep={}; LOCAL_ONLY.forEach(k=>keep[k]=S[k]);
       S=Object.assign({},DEF,j.state,keep); S.updatedAt=j.updatedAt;
