@@ -1647,11 +1647,17 @@ function renderNow(P){
     +'<button class="btn sec" onclick="stashIdea()">サブ目標にする</button>'
     +'<button class="btn sec" onclick="dropTrial()">外す</button></div></div>';
   const goMode=P.byApple?(MODES[P.byApple.mode]||MODES[DEFMODE]).n+'（Apple地図）':MODES[A.mode||DEFMODE].n;
-  /* 見出しは「いま居る場所から直行なら何分」。帳簿の方は寄り道をつないだ実際の足し算 */
+  /* 見出しは「いま居る場所から直行なら何分」。帳簿の方は寄り道をつないだ実際の足し算。
+     Mac が Apple の地図で「いま居る場所から」出した時間があればそれ（電車は時刻表どおり）、無ければ直線距離からの概算 */
+  const hereApple=hasPlace(A)&&A.travelMin==null&&S.here&&S.here.lat!=null?macRoute(A,S.here):null;
   const goDirect=!hasPlace(A)?null
-    :(A.travelMin!=null?{min:A.travelMin,km:null}:legMin(S.here,A,A.mode));
+    :A.travelMin!=null?{min:A.travelMin,km:null}
+    :hereApple?{min:hereApple.min,km:hereApple.km}
+    :legMin(S.here,A,A.mode);
+  const goModeHere=hereApple?(MODES[hereApple.mode]||MODES[DEFMODE]).n+'（Apple地図）'
+    :MODES[A.mode||DEFMODE].n+(A.travelMin==null?'（直線から概算）':'');
   const goTag=goDirect
-    ? ' <b style="color:#6aa9ff">🚶 ここから '+esc(goMode)+'で 約'+dur(goDirect.min)
+    ? ' <b style="color:#6aa9ff">🚶 ここから '+esc(goModeHere)+'で 約'+dur(goDirect.min)
       +(goDirect.km!=null?'（'+goDirect.km.toFixed(1)+'km）':'')+'</b>'
     : hasPlace(A) ? ' <b style="color:#ffb454">🚶 移動 ?分（'+(S.here&&S.here.lat!=null&&A.lat==null?'行き先が地図で見つからない':'現在地がまだ')+'）</b>'
     : ' <b style="color:#ffb454">🚶 移動時間まだ</b>';
@@ -2665,7 +2671,7 @@ function planCommit(){
 const isoLocal=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-10-16-2';
+const APP_VERSION='2026-10-16-3';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
