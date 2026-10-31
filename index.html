@@ -834,7 +834,42 @@ function legMin(from,to,mode){
   const d=kmBetween(from,to)*(1+(S.detour||0)/100), M=MODES[mode||DEFMODE];
   return {min:Math.max(1,Math.round(d/M.v*60+M.f)), km:d, mode:M.n};
 }
-const hasPlace=x=>!!((x.addr&&x.addr.trim())||x.travelMin!=null||x.lat!=null);
+/* Per-event user estimates; never write back to Google Calendar. Invalidate when
+   occurrence/time/destination changes or the departure point moves > 1 km. */
+function travelScope(a){return JSON.stringify([a.at,a.addr||'',a.lat??null,a.lng??null,a.mode||DEFMODE])}
+function travelOverride(a,from){
+  const o=(S.travelOverrides||{})[a.id];
+  if(!o||o.scope!==travelScope(a)||!from||!Number.isFinite(from.lat)||!Number.isFinite(from.lng)||!o.from||!Number.isFinite(o.from.lat)||!Number.isFinite(o.from.lng)
+    ||!Number.isInteger(o.min)||o.min<1||o.min>1440)return null;
+  if(kmBetween(from,o.from)>1)return null;
+  return o.min;
+}
+function routeLeg(a,from){
+  const override=travelOverride(a,from);
+  if(override!=null)return {min:override,km:null,source:'manual'};
+  if(a.travelMin!=null)return {min:a.travelMin,km:null,source:'manual'};
+  const apple=macRoute(a,from);
+  if(apple)return {...apple,source:'apple'};
+  const estimate=legMin(from,a,a.mode);
+  return estimate?{...estimate,source:'estimate'}:null;
+}
+function editTravel(id){
+  const a=AN().find(x=>x.id===id);if(!a)return;
+  if(!S.here||S.here.lat==null)return alert('先に現在地を取得・選択してください。');
+  const old=travelOverride(a,S.here);
+  const v=prompt('この予定へ、いまの場所から直行する移動時間（分）。例：86\n経路アプリで確認した所要時間を入れてください。余裕は別に加算します。\n予定時刻・行先が変わるか、出発点から1km超離れると無効になります。空欄で今回の入力を解除し、元の設定・計算に戻します。',old==null?'':String(old));
+  if(v===null)return;
+  const value=v.trim();
+  if(value&&!/^\d+(?:\s*分)?$/.test(value))return alert('1〜1440の整数（分）を入力してください。');
+  const min=parseInt(value,10);
+  if(value&&(!Number.isInteger(min)||min<1||min>1440))return alert('1〜1440の整数（分）を入力してください。');
+  const overrides={...(S.travelOverrides||{})};
+  if(!value)delete overrides[id];
+  else overrides[id]={min,scope:travelScope(a),from:{lat:S.here.lat,lng:S.here.lng},setAt:Date.now()};
+  S.travelOverrides=overrides;save();render();
+  toast(value?'移動'+min+'分（手入力）にした':'今回の入力を解除し、元の計算に戻した');
+}
+const hasPlace=x=>!!((x.addr&&x.addr.trim())||x.travelMin!=null||x.lat!=null||(S.travelOverrides||{})[x.id]!=null);
 
 let locating=null;   /* 取得中の表示文（null なら取得していない） */
 /* 緯度経度 → 地名（「渋谷区 道玄坂」くらいの粒度） */
@@ -861,25 +896,36 @@ let MACR={};
 /* iPhone など Mac の外：Mac の小窓が同期の棚に置いた Apple 地図の時間（aroutes）を借りる。
    出発点が 1km 以内のときだけ（家で Mac と一緒にいるとき）。外に出ていれば今まで通り直線からの概算 */
 let AROUTES={}; try{AROUTES=JSON.parse(localStorage.getItem('gyakusan.aroutes')||'{}')||{}}catch(e){}
+function routeIssue(A,cur){
+  const r=IN_HS?MACR[A.id]:AROUTES[A.id], mode=A.mode||DEFMODE;
+  if(!r)return 'Apple経路を未取得（Macの接続・再計算待ち）';
+  if(!cur||!Number.isFinite(cur.lat)||!Number.isFinite(cur.lng))return '現在地が未確認';
+  if(!Number.isFinite(A.lat)||!Number.isFinite(A.lng))return '行き先の座標が未確認';
+  if(!['min','got','at','tlat','tlng','flat','flng'].every(k=>Number.isFinite(r[k]))||r.min<0)return '経路データが不完全';
+  const age=Date.now()-r.got;
+  if(age< -60000)return '経路の取得時刻が不正';
+  if(age>30*60000)return 'Apple経路が期限切れ（'+Math.floor(age/60000)+'分前）';
+  if(r.mode!==mode||(r.requestedMode!=null&&r.requestedMode!==mode))return '移動手段が一致しない';
+  if(Math.abs(r.at-new Date(A.at).getTime())>1000)return '予定時刻が変わったため再計算が必要';
+  if(Math.abs(r.tlat-A.lat)>1e-4||Math.abs(r.tlng-A.lng)>1e-4)return '行き先が変わったため再計算が必要';
+  if(kmBetween(cur,{lat:r.flat,lng:r.flng})>0.3)return '出発点が300m以上違うため再計算が必要';
+  return '';
+}
 function macRoute(A,cur){
-  const mine=IN_HS, r=mine?MACR[A.id]:AROUTES[A.id]; if(!r||!A.lat)return null;
-  if(Date.now()-r.got>(mine?20:90)*60000)return null;              /* 古い */
-  if(Math.abs(r.at-new Date(A.at).getTime())>60000)return null;    /* 時刻が変わった */
-  if(Math.abs(r.tlat-A.lat)>1e-4||Math.abs(r.tlng-A.lng)>1e-4)return null;   /* 行き先が変わった */
-  if(cur&&cur.lat!=null){                                           /* 出発点が違う（寄り道・★で選んだ・外にいる等） */
-    if(mine?Math.abs(r.flat-cur.lat)+Math.abs(r.flng-cur.lng)>0.003:kmBetween(cur,{lat:r.flat,lng:r.flng})>1)return null;
-  }else if(!mine)return null;
-  return r;
+  return routeIssue(A,cur)?null:(IN_HS?MACR[A.id]:AROUTES[A.id]);
 }
 /* Mac の小窓だけ：Apple 地図の時間を棚に置く（中身が変わったときか10分ごと） */
 let _arSig='', _arAt=0;
-function shareRoutes(routes){
+async function shareRoutes(routes){
   if(!IN_HS||!syncKey||!navigator.onLine||!routes)return;
   const sig=JSON.stringify(Object.keys(routes).sort().map(k=>{const r=routes[k];return [k,r.min,r.at,r.tlat,r.tlng,r.flat&&r.flat.toFixed(3),r.flng&&r.flng.toFixed(3)]}));
   if(sig===_arSig&&Date.now()-_arAt<10*60000)return;
-  _arSig=sig; _arAt=Date.now();
-  fetch(SYNC_URL+'?op=routes&key='+encodeURIComponent(syncKey),
-    {method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({routes})}).catch(()=>{_arSig=''});
+  try{
+    const r=await fetch(SYNC_URL+'?op=routes&key='+encodeURIComponent(syncKey),
+      {method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({routes})});
+    const j=await r.json(); if(!r.ok||!j.ok)throw new Error('routes');
+    _arSig=sig; _arAt=Date.now();
+  }catch(e){_arSig=''}
 }
 window.gyakusanMac=function(o){
   if(!IN_HS||!o)return;
@@ -895,7 +941,12 @@ window.gyakusanMac=function(o){
       S.hereNameManual=false;
     }
   }
-  if(o.routes){MACR=o.routes;shareRoutes(o.routes)}
+  if(o.routes){
+    const changed=JSON.stringify(MACR)!==JSON.stringify(o.routes);
+    MACR=o.routes;
+    if(!o.routesShared)shareRoutes(o.routes); // Older native bridge compatibility.
+    if(changed&&S.here)pushSoon(); // Route-only refresh must also refresh the widget summary.
+  }
   /* 行き先が文字だけだった約束：Mac が Apple の地図で見つけた座標を入れる。S に入れて同期＝iPhoneでも移動時間が出る */
   if(o.found){
     let ch=false; S.gloc=S.gloc||{};
@@ -1457,12 +1508,13 @@ function plan(forA){
     sum+=tv+work;
   }
   let toAnchor=0, anchorKm=null, anchorUnknown=false, byApple=null;
-  const MR=macRoute(A,cur);
+  const route=hasPlace(A)?routeLeg(A,cur):null;
+  const travelSource=route?route.source:hasPlace(A)?'unknown':'none';
   if(hasPlace(A)){
-    if(A.travelMin!=null)toAnchor=A.travelMin;
-    else if(MR){toAnchor=MR.min;anchorKm=MR.km;byApple=MR;if(MR.km)totalKm+=MR.km}
-    else{const L=legMin(cur,A,A.mode); if(L){toAnchor=L.min;anchorKm=L.km;totalKm+=L.km} else anchorUnknown=true}
+    if(route){toAnchor=route.min;anchorKm=route.km;if(route.km)totalKm+=route.km;if(route.source==='apple')byApple=route}
+    else anchorUnknown=true;
   }
+  const travelEstimated=travelSource==='estimate'||steps.some(x=>x.km!=null);
   const buffer=S.buffer||0;
   /* 約束までに夜をまたぐなら、寝る時間も引く。1晩＝睡眠＋起きてからの余裕 */
   const nights=S.sleepOn===false?0:nightsBetween(now,A.d);
@@ -1473,7 +1525,7 @@ function plan(forA){
   const leaveAt=plus(A.d,-(toAnchor+buffer));          /* 出発（場所が無ければ動き出す）時刻 */
   const bedAt=nights?plus(leaveAt,-sleepPer):null;      /* 前の晩、遅くともこの時刻に寝る */
   const wakeAt=nights?plus(bedAt,sleepMin):null;
-  return {now,A,up,untilAnchor,subs,active,steps,sum,toAnchor,anchorKm,anchorUnknown,totalKm,byApple,
+  return {now,A,up,untilAnchor,subs,active,steps,sum,toAnchor,anchorKm,anchorUnknown,totalKm,byApple,travelSource,travelEstimated,
           fromNameToAnchor:curName,buffer,need,slack,startBy:plus(A.d,-need),
           nights,sleepMin,sleepBuf,sleepPer,sleepAll,leaveAt,bedAt,wakeAt};
 }
@@ -1505,9 +1557,7 @@ const ancOf=id=>AN().find(x=>x.id===id);
 /* この予定の「出発の時刻」。移動時間が出せないうちは null */
 function anchorLeaveAt(a){
   const d=new Date(a.at); if(isNaN(d)||!hasPlace(a))return null;
-  let tv=null;
-  if(a.travelMin!=null)tv=a.travelMin;
-  else{const r=macRoute(a,S.here); if(r)tv=r.min; else{const L=legMin(S.here,a,a.mode); if(L)tv=L.min}}
+  const route=routeLeg(a,S.here), tv=route?route.min:null;
   if(tv==null)return null;
   return plus(d,-(tv+(S.buffer||0)));
 }
@@ -1822,25 +1872,21 @@ function renderNow(P){
       +'<div class="sub">上の欄に「19時 渋谷駅で打ち合わせ」のように打つと、そこまで何時間あるかが出る。</div></div>';
     el.innerHTML=h+renderSoft(P)+renderIdeas();return;
   }
-  const A=P.A, late=P.slack<0;
+  const A=P.A, late=P.slack<0, travelProvisional=P.travelEstimated||P.anchorUnknown||P.steps.some(x=>x.unknown);
   if(S.trial)h+='<div class="trialbar">'
     +'<div>✦ ひらめき「<b>'+esc(S.trial.title)+'</b>」を入れて計算しています</div>'
     +'<div class="two" style="margin-top:8px">'
     +'<button class="btn sec" onclick="stashIdea()">サブ目標にする</button>'
     +'<button class="btn sec" onclick="dropTrial()">外す</button></div></div>';
-  const goMode=P.byApple?(MODES[P.byApple.mode]||MODES[DEFMODE]).n+'（Apple地図）':MODES[A.mode||DEFMODE].n;
+  const goMode=P.byApple?(MODES[P.byApple.mode]||MODES[DEFMODE]).n+'（Apple地図）':MODES[A.mode||DEFMODE].n+(P.travelSource==='manual'?'（手入力）':P.travelSource==='estimate'?'（概算・未確認）':'');
   /* 見出しは「いま居る場所から直行なら何分」。帳簿の方は寄り道をつないだ実際の足し算。
      Mac が Apple の地図で「いま居る場所から」出した時間があればそれ（電車は時刻表どおり）、無ければ直線距離からの概算 */
-  const hereApple=hasPlace(A)&&A.travelMin==null&&S.here&&S.here.lat!=null?macRoute(A,S.here):null;
-  const goDirect=!hasPlace(A)?null
-    :A.travelMin!=null?{min:A.travelMin,km:null}
-    :hereApple?{min:hereApple.min,km:hereApple.km}
-    :legMin(S.here,A,A.mode);
-  const goModeHere=hereApple?(MODES[hereApple.mode]||MODES[DEFMODE]).n+'（Apple地図）'
-    :MODES[A.mode||DEFMODE].n+(A.travelMin==null?'（直線から概算）':'');
+  const goDirect=hasPlace(A)?routeLeg(A,S.here):null;
+  const goModeHere=(goDirect&&goDirect.source==='apple'?(MODES[goDirect.mode]||MODES[DEFMODE]):MODES[A.mode||DEFMODE]).n+(goDirect&&goDirect.source==='apple'?'（Apple地図）'
+    :goDirect&&goDirect.source==='manual'?'（手入力）':'（直線から概算・未確認）');
   const goTag=goDirect
     ? ' <b style="color:#6aa9ff">🚶 ここから '+esc(goModeHere)+'で 約'+dur(goDirect.min)
-      +(goDirect.km!=null?'（'+goDirect.km.toFixed(1)+'km）':'')+'</b>'
+      +(goDirect.km!=null?'（'+goDirect.km.toFixed(1)+'km'+(goDirect.source==='estimate'?'・補正距離／実経路ではない':'')+'）':'')+'</b>'
     : hasPlace(A) ? ' <b style="color:#ffb454">🚶 移動 ?分（'+(S.here&&S.here.lat!=null&&A.lat==null?'行き先が地図で見つからない':'現在地がまだ')+'）</b>'
     : ' <b style="color:#ffb454">🚶 移動時間まだ</b>';
   h+='<div class="hero'+(late?' go':'')+'">'
@@ -1848,8 +1894,12 @@ function renderNow(P){
     +'<div class="lbl">'+esc(A.title)+gTag(A)+'（'+(A.gcal?hm(A.d):'<span class="tm" onclick="askTime(\''+A.id+'\')" title="時間を変える">'+hm(A.d)+'</span>')
     +(A.addr?' ・'+esc(shortAddr(A.addr)):'')+'）まで'
     +goTag+'</div>'
-    +'<div class="big'+(late?'':' ok')+'"><span class="pre">'+(late?'足りない':'のこり')+'</span>'
+    +(goDirect&&goDirect.source==='apple'?'<div class="tiny">Apple経路の取得 '+Math.max(0,Math.floor((Date.now()-goDirect.got)/60000))+'分前・30分で再確認</div>':'')
+    +(hasPlace(A)&&(!goDirect||goDirect.source==='estimate')?'<div class="warn">'+esc((S.travelOverrides||{})[A.id]?'手入力の条件（日時・行先・出発点）が変わり無効になりました。再入力してください。':routeIssue(A,S.here))+'</div>':'')
+    +'<button class="btn sec" onclick="editTravel(decodeURIComponent(\''+encodeURIComponent(A.id).replace(/'/g,'%27')+'\'))">移動時間を入力・変更</button>'
+    +'<div class="big'+(late||travelProvisional?'':' ok')+'"><span class="pre">'+(late?'足りない':travelProvisional?'仮ののこり':'のこり')+'</span>'
     +(late?dur(-P.slack):dur(P.slack))+'</div>'
+    +(travelProvisional?'<div class="warn">⚠ 移動時間は未確認です。乗換・徒歩・待ち時間を調べていないため、この残り時間や出発時刻は仮です。</div>':'')
     +'<div class="sub">約束まで あと '+dur(P.untilAnchor)+'。'+(late
       ? 'どれか外すか、短くする。'
       : P.nights
@@ -1859,7 +1909,7 @@ function renderNow(P){
           +(P.steps.length?'。<br>やることは <b style="color:#e8edf3">'+hm(P.startBy)+'</b> までに始めれば間に合う':'')+'。'
         : P.anchorUnknown
           ? '移動時間が分からないので、<b style="color:#ffb454">出る時刻はまだ出せない</b>（'+hm(P.startBy)+' は移動0分のときの話）。行き先の住所を入れるか、Macで開くと Apple の地図で探す。'
-        : '全部やるなら <b style="color:#e8edf3">'+hm(P.startBy)+'</b> までに'
+        : (P.travelEstimated?'概算では（未確認） ':'全部やるなら ')+'<b style="color:#e8edf3">'+hm(P.startBy)+'</b> までに'
           +(P.toAnchor?'<b style="color:#e8edf3">出れば</b>いい（'+esc(goMode)+' '+dur(P.toAnchor)+'＋余裕'+dur(P.buffer)+'）。'
                       :'動き出せばいい。'))+'</div>'
     +'<div class="ldg">';
@@ -1983,7 +2033,7 @@ function renderNow(P){
     +'<button class="btn sec" onclick="editAnchor(\''+A.id+'\')">✎ この予定を直す</button>'
     +'<button class="btn sec danger" onclick="delAnchor(\''+A.id+'\')">× この予定を消す</button></div>';
   if(P.totalKm>0.05)h+='<div class="tiny" style="padding:0 4px 6px">🚶 今日この段取りで動く距離：合計 <b style="color:#6aa9ff">'
-    +P.totalKm.toFixed(1)+'km</b>（直線。実際の道のりは +'+(S.detour||0)+'% で見ています）</div>';
+    +P.totalKm.toFixed(1)+'km</b>（概算区間は直線距離に '+(S.detour||0)+'% を加えた補正距離。実経路の距離ではありません）</div>';
   h+='<div class="tiny" style="padding:4px 4px 20px">※ やることの時間は入力に +'+(S.fudge||0)
     +'% した数字。移動は住所どうしの直線距離 +'+(S.detour||0)+'% を行きかたの速さで割った目安。</div>';
   el.innerHTML=h;
@@ -2096,18 +2146,18 @@ function renderAnc(P){
   }).join('');
 }
 function addrLine(a){
-  if(!a.addr)return '<div class="addr no" onclick="editAddr(\''+a.id+'\')">＋ 住所を入れる（行く必要があるなら）</div>';
-  let h='<div class="addr" onclick="editAddr(\''+a.id+'\')">📍 '+esc(shortAddr(a.addr));
-  if(a.travelMin!=null)h+=' ／ <b>片道'+a.travelMin+'分</b>（手入力）';
-  else{
-    const L=legMin(S.here,a,a.mode);
-    if(L)h+=' ／ '+L.km.toFixed(1)+'km → '+L.mode+'で <b>約'+L.min+'分</b>'
-      +(L.km>100?' <span style="color:#ffb454">※遠すぎて目安になりません。タップして「◯分」と手入力を</span>':'');
-    else if(a.lat==null)h+=' ／ <span class="no">未検索（タップして入れ直す）</span>';
-    else h+=' ／ <span class="no">現在地を取ると分数が出る</span>';
-  }
+  const L=routeLeg(a,S.here);
+  if(!a.addr&&!L)return '<div class="addr no" onclick="editAddr(\''+a.id+'\')">＋ 住所を入れる（行く必要があるなら）</div>';
+  let h='<div class="addr" onclick="editAddr(\''+a.id+'\')">📍 '+esc(shortAddr(a.addr||'移動時間のみ'));
+  if(L){
+    if(L.source==='manual')h+=' ／ <b>片道'+L.min+'分</b>（手入力）';
+    else if(L.source==='apple')h+=' ／ <b>'+L.min+'分</b>（Apple地図）';
+    else h+=' ／ '+L.km.toFixed(1)+'km（補正距離・実経路ではない） → <b>約'+L.min+'分</b>（概算・未確認）';
+  }else if(a.lat==null)h+=' ／ <span class="no">未検索（タップして入れ直す）</span>';
+  else h+=' ／ <span class="no">現在地を取ると分数が出る</span>';
   return h+'</div>';
 }
+
 function syncParent(){
   const e=document.getElementById('sParent'); if(document.activeElement===e)return;
   const v=e.value, now=new Date();
@@ -3156,20 +3206,32 @@ function buildSummary(){
   const up=fut.filter(a=>!a.soft).slice(0,6);
   const soft=fut.filter(a=>a.soft).slice(0,6).map(a=>({title:a.title||'予定',at:new Date(a.at).getTime(),min:a.softMin||60}));
   const ideas=(S.ideas||[]).slice(0,8).map(I=>({title:I.title,min:I.min||null}));
-  return {v:1,genAt:Date.now(),buffer:S.buffer||0,sleepOn:S.sleepOn!==false,soft,ideas,
+  return {v:1,widgetV:2,genAt:Date.now(),buffer:S.buffer||0,sleepOn:S.sleepOn!==false,soft,ideas,
     sleepPer:Math.round(((S.sleepH||0)+(S.sleepBufH||0))*60),
     items:up.map(a=>{const P=plan(a);const ok=hasPlace(a)&&!P.anchorUnknown;
       return {id:a.id,title:a.title||'予定',at:P.A.d.getTime(),hasPlace:hasPlace(a),job:a.job||null,dur:a.gmin||null,gcal:!!a.gcal,
-        toAnchor:Math.round(P.toAnchor),leaveAt:ok?P.leaveAt.getTime():null,
-        lat:a.lat,lng:a.lng,mode:a.mode||DEFMODE,tm:a.travelMin!=null,
+        toAnchor:Math.round(P.toAnchor),travelSource:P.travelSource,travelEstimated:P.travelEstimated,routeUnknown:!!(P.anchorUnknown||P.steps.some(x=>x.unknown)),routeGot:P.byApple?P.byApple.got:null,leaveAt:ok?P.leaveAt.getTime():null,
+        lat:a.lat,lng:a.lng,mode:a.mode||DEFMODE,tm:P.travelSource==='manual',
         addr:a.lat==null&&a.addr?String(a.addr).trim():undefined,   /* 座標が無い行き先は、Macが Apple の地図で探す */
         via:(()=>{const v=P.steps.filter(x=>x.s.lat!=null).pop();return v?{lat:v.s.lat,lng:v.s.lng}:null})(),
+        routeOrigin:(()=>{const v=P.steps.filter(x=>x.s.lat!=null).pop();const p=v?v.s:S.here;return p&&p.lat!=null?{lat:p.lat,lng:p.lng}:null})(),
         work:Math.round(P.sum),
-        subs:P.steps.map(x=>({t:x.s.title||'',min:Math.round(x.work+x.tv)}))}})};
+        subs:P.steps.map(x=>({t:x.s.title||'',min:Math.round(x.work+x.tv),travelSource:x.unknown?'unknown':hasPlace(x.s)?(x.s.travelMin!=null?'manual':'estimate'):'none'}))}})};
 }
 async function pushNow(){
   if(!syncKey||!navigator.onLine)return;
   if(!S.updatedAt){S.updatedAt=Date.now();localStorage.setItem(KEY,JSON.stringify(S))}
+  if(!IN_HS){
+    try{
+      const rr=await fetch(SYNC_URL+'?op=get&have='+encodeURIComponent(S.updatedAt||0)+'&key='+encodeURIComponent(syncKey));
+      const latest=await rr.json(); if(!rr.ok||!latest.ok)throw new Error('routes');
+      if(latest.updatedAt>S.updatedAt){await pullNow();return;}
+      if(latest.aroutes&&latest.aroutes.routes){
+        AROUTES=latest.aroutes.routes;
+        try{localStorage.setItem('gyakusan.aroutes',JSON.stringify(AROUTES))}catch(e){}
+      }
+    }catch(e){setSync('経路の確認に失敗。要約の送信を保留',true);return;}
+  }
   const body=JSON.stringify({state:sharedState(),summary:buildSummary(),
     from:/iPhone|iPad/.test(navigator.userAgent)?'iPhone':'Mac'});
   try{
@@ -3195,9 +3257,10 @@ async function pullNow(){
       _pulling=false; S.updatedAt=0; return pullNow();
     }
     try{localStorage.setItem('gyakusan.synced','1')}catch(e){}
+    let routesChanged=false;
     if(!IN_HS&&j.aroutes&&j.aroutes.routes){
       const was=JSON.stringify(AROUTES); AROUTES=j.aroutes.routes;
-      if(JSON.stringify(AROUTES)!==was){try{localStorage.setItem('gyakusan.aroutes',JSON.stringify(AROUTES))}catch(e){} render()}
+      if(JSON.stringify(AROUTES)!==was){routesChanged=true;try{localStorage.setItem('gyakusan.aroutes',JSON.stringify(AROUTES))}catch(e){} render()}
     }
     if(j.state&&j.updatedAt>mine){
       const keep={}; LOCAL_ONLY.forEach(k=>keep[k]=S[k]);
@@ -3210,6 +3273,7 @@ async function pullNow(){
       if(S.here)pushSoon();
     }else if(!j.updatedAt||j.updatedAt<mine){pushSoon(); setSync('こっちが新しいので送る',false)}
     else setSync('同じ中身',false);
+    if(routesChanged&&S.here)pushSoon();
   }catch(e){setSync('つながらない：'+e.message,true)}
   finally{_pulling=false}
 }
@@ -3232,3 +3296,4 @@ setInterval(()=>{const n=new Date();
 </script>
 </body>
 </html>
+
