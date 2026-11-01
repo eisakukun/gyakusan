@@ -76,7 +76,7 @@ export class DeviceRoutes{
 }
 
 /* 設定の下の折り畳み。主画面のボタン（index.html）からも同じ DeviceRoutes を使う */
-export function mountTransitPanel({host,accountIdentity,readTarget,targetFor,onReady,onChange=()=>{}}){
+export function mountTransitPanel({host,accountIdentity,readTarget,targetFor,inextURL=()=>'',onReady,onChange=()=>{}}){
   const root=document.createElement('details');
   root.innerHTML='<summary>iPhoneの交通時間（この端末だけ）</summary>'
     +'<p class="tiny">約束カードの「📍 iPhoneで電車の時間を取る」→ ショートカット「'+SHORTCUT_NAME+'」が動く → このアプリに戻って「📋 取ってきた時間を入れる」。結果はこの端末の中だけ。Mac・共有の要約・ウィジェットには送りません。</p>'
@@ -87,6 +87,8 @@ export function mountTransitPanel({host,accountIdentity,readTarget,targetFor,onR
     +'<p class="tiny">戻っても取り込めないとき（Safariで開いた等）：ショートカットが出した時間をここに貼る</p>'
     +'<input data-duration placeholder="例：1時間23分" aria-label="Appleの移動時間"> '
     +'<button class="btn sec" data-import>取り込む</button> <button class="btn sec" data-clear>この端末の結果を消す</button>'
+    +'<p class="tiny" style="margin-top:10px">時刻のオートメーション用：ショートカットの最初の「URL」に貼るもの（同期の合言葉入り。人に渡さない）</p>'
+    +'<button class="btn sec" data-inext>自動取得用のURLをコピー</button>'
     +'<p data-message role="status" class="tiny"></p>';
   host.append(root);
   const q=s=>root.querySelector(s),msg=q('[data-message]');
@@ -105,6 +107,8 @@ export function mountTransitPanel({host,accountIdentity,readTarget,targetFor,onR
     q('[data-format]').onchange=()=>localStorage.setItem(fmKey,q('[data-format]').value);
     q('[data-import]').onclick=()=>{try{const r=api.paste(q('[data-duration]').value);q('[data-duration]').value='';
       msg.textContent='取り込みました：'+r.minutes+'分';onChange();refresh()}catch(e){msg.textContent='取り込めません：'+e.message}};
+    q('[data-inext]').onclick=async()=>{const u=inextURL();if(!u){msg.textContent='先に同期の合言葉を入れてください';return}
+      try{await navigator.clipboard.writeText(u);msg.textContent='コピーしました。ショートカットの「URL」に貼ってください'}catch{msg.textContent='コピーできませんでした'}};
     q('[data-clear]').onclick=()=>{routes.clear();msg.textContent='消しました';onChange();refresh()};
     function refresh(){
       const tg=readTarget(),r=tg&&routes.last(tg.eventId);

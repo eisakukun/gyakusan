@@ -847,20 +847,48 @@ function travelOverride(a,from){
 /* iPhoneだけで取った電車の時間（iphone-transit.mjs が入れる）。この端末の中だけ。共有の要約(shared)には使わない */
 let IPHONE=null;
 function iphoneTarget(a){return {eventId:a.id,arriveAt:new Date(a.at).getTime(),destination:{lat:a.lat,lng:a.lng},mode:a.mode||DEFMODE,addr:a.addr||''}}
+/* iPhoneのショートカット（時刻のオートメーション）が同期の棚の iroutes に置いた時間。iPhoneだけが読む。Macは使わない */
+let IROUTES={}; try{IROUTES=JSON.parse(localStorage.getItem('gyakusan.iroutes')||'{}')||{}}catch(e){}
+function takeIroutes(ir){
+  if(IN_HS||!IS_IOS||!ir||!ir.routes)return false;
+  const was=JSON.stringify(IROUTES); IROUTES=ir.routes;
+  if(JSON.stringify(IROUTES)===was)return false;
+  try{localStorage.setItem('gyakusan.iroutes',JSON.stringify(IROUTES))}catch(e){}
+  /* ショートカットが取ったときの現在地を「いま居る場所」に。自分で選んだ場所は2時間は上書きしない */
+  const nw=Object.values(IROUTES).filter(r=>r&&Number.isFinite(r.flat)&&Number.isFinite(r.flng)&&Number.isFinite(r.got)).sort((x,y)=>y.got-x.got)[0];
+  if(nw&&!(S.here&&S.here.at>=nw.got)&&!(S.here&&S.here.manual&&Date.now()-S.here.at<2*3600000)){
+    S.here={lat:nw.flat,lng:nw.flng,acc:100,at:nw.got,manual:false,label:'iPhoneの自動取得'};
+    S.hereName='いまの場所（自動）'; S.hereNameManual=false;
+    try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}   /* 端末ごとの値なので updatedAt は上げない */
+  }
+  return true;
+}
+function iphoneShared(a,from){
+  const r=IROUTES[a.id]; if(!r||!Number.isInteger(r.min)||r.min<1||r.min>1440||(a.mode||DEFMODE)!=='train')return null;
+  if(Math.abs(r.at-new Date(a.at).getTime())>1000||Math.abs(r.tlat-a.lat)>1e-4||Math.abs(r.tlng-a.lng)>1e-4)return null;
+  const age=Date.now()-r.got; if(!(age>=-60000&&age<=12*3600000))return null;
+  if(!from||!Number.isFinite(from.lat)||kmBetween(from,{lat:r.flat,lng:r.flng})>0.3)return null;
+  return {min:r.min,got:r.got,stale:age>IPHONE_FRESH,auto:true};
+}
+const IPHONE_FRESH=3*3600000;   /* 同じ場所・同じ行き先なら電車の所要時間はそう変わらない。3時間を過ぎたら「仮」 */
 function iphoneRoute(a,from,shared){
-  if(shared||IN_HS||!IPHONE||!IPHONE.enabled()||!Number.isFinite(a.lat)||!Number.isFinite(a.lng))return null;
-  try{return IPHONE.routes.read(iphoneTarget(a),from)}catch(e){return null}
+  if(shared||!IPHONE||IN_HS||!IS_IOS||!IPHONE.enabled()||!Number.isFinite(a.lat)||!Number.isFinite(a.lng))return null;
+  let own=null,auto=null;
+  try{own=IPHONE.routes.read(iphoneTarget(a),from)}catch(e){}
+  try{auto=iphoneShared(a,from)}catch(e){}
+  if(own)own={...own,stale:Date.now()-own.got>IPHONE_FRESH};
+  return [own,auto].filter(Boolean).sort((x,y)=>y.got-x.got)[0]||null;   /* 新しい方 */
 }
 function routeLeg(a,from,shared=false){
   const override=travelOverride(a,from);
   if(override!=null)return {min:override,km:null,source:'manual'};
   if(a.travelMin!=null)return {min:a.travelMin,km:null,source:'manual'};
-  /* 新しい順：iPhoneで取ったばかり → Macの Apple 地図 → 30分過ぎのiPhone（○分前と出す） → 直線の概算 */
+  /* 新しい順：iPhoneで取った3時間以内 → Macの Apple 地図 → 3時間過ぎのiPhone（○分前と出す） → 直線の概算 */
   const own=iphoneRoute(a,from,shared);
-  if(own&&!own.stale)return {min:own.min,km:null,source:'iphone_shortcuts',got:own.got,stale:false};
+  if(own&&!own.stale)return {min:own.min,km:null,source:'iphone_shortcuts',got:own.got,stale:false,auto:!!own.auto};
   const apple=macRoute(a,from);
   if(apple)return {...apple,source:'apple'};
-  if(own)return {min:own.min,km:null,source:'iphone_shortcuts',got:own.got,stale:true};
+  if(own)return {min:own.min,km:null,source:'iphone_shortcuts',got:own.got,stale:true,auto:!!own.auto};
   const estimate=legMin(from,a,a.mode);
   return estimate?{...estimate,source:'estimate'}:null;
 }
@@ -1967,7 +1995,7 @@ function renderNow(P){
     +(A.addr?' ・'+esc(shortAddr(A.addr)):'')+'）まで'
     +goTag+'</div>'
     +(goDirect&&goDirect.source==='apple'?'<div class="tiny">Apple経路の取得 '+Math.max(0,Math.floor((Date.now()-goDirect.got)/60000))+'分前・30分で再確認</div>':'')
-    +(goDirect&&goDirect.source==='iphone_shortcuts'?'<div class="tiny">このiPhoneで取得 '+Math.max(0,Math.floor((Date.now()-goDirect.got)/60000))+'分前'+(goDirect.stale?'・30分を過ぎたので取り直すと確実':'・30分で再確認')+'</div>':'')
+    +(goDirect&&goDirect.source==='iphone_shortcuts'?'<div class="tiny">このiPhoneで取得 '+Math.max(0,Math.floor((Date.now()-goDirect.got)/60000))+'分前'+(goDirect.auto?'（時刻の自動取得）':'')+(goDirect.stale?'・3時間を過ぎたので取り直すと確実':'')+'</div>':'')
     +(hasPlace(A)&&(!goDirect||goDirect.source==='estimate')?'<div class="warn">'+esc((S.travelOverrides||{})[A.id]?'手入力の条件（日時・行先・出発点）が変わり無効になりました。再入力してください。':routeIssue(A,S.here))+'</div>':'')
     +'<button class="btn sec" onclick="editTravel(decodeURIComponent(\''+encodeURIComponent(A.id).replace(/'/g,'%27')+'\'))">移動時間を入力・変更</button>'
     +iphoneButtons(A,goDirect)
@@ -2979,7 +3007,7 @@ function planCommit(){
 const isoLocal=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-11-01-iphone2';
+const APP_VERSION='2026-11-01-iphone3';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
@@ -3305,6 +3333,7 @@ async function pushNow(){
         AROUTES=latest.aroutes.routes;
         try{localStorage.setItem('gyakusan.aroutes',JSON.stringify(AROUTES))}catch(e){}
       }
+      takeIroutes(latest.iroutes);
     }catch(e){setSync('経路の確認に失敗。要約の送信を保留',true);return;}
   }
   const body=JSON.stringify({state:sharedState(),summary:buildSummary(),
@@ -3337,6 +3366,7 @@ async function pullNow(){
       const was=JSON.stringify(AROUTES); AROUTES=j.aroutes.routes;
       if(JSON.stringify(AROUTES)!==was){routesChanged=true;try{localStorage.setItem('gyakusan.aroutes',JSON.stringify(AROUTES))}catch(e){} render()}
     }
+    if(takeIroutes(j.iroutes))render();
     if(j.state&&j.updatedAt>mine){
       const keep={}; LOCAL_ONLY.forEach(k=>keep[k]=S[k]);
       S=Object.assign({},DEF,j.state,keep); S.updatedAt=j.updatedAt;
@@ -3379,6 +3409,7 @@ mountTransitPanel({host:document.querySelector('main')||document.body,
   },
   readTarget:()=>{const P=plan();return P.A?targetFor(P.A.id):null},
   targetFor,
+  inextURL:()=>syncKey?SYNC_URL+'?op=inext&key='+encodeURIComponent(syncKey):'',
   onReady:api=>{IPHONE={...api,destText:destinationText};render()},
   onChange:()=>render()
 });
