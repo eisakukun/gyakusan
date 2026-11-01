@@ -844,10 +844,18 @@ function travelOverride(a,from){
   if(kmBetween(from,o.from)>1)return null;
   return o.min;
 }
-function routeLeg(a,from){
+let DEVICE_ROUTE=null;
+function deviceRouteScope(a,from){
+  return {eventId:a.id,arriveAt:new Date(a.at).getTime(),origin:{lat:from.lat,lng:from.lng},destination:{lat:a.lat,lng:a.lng},mode:a.mode||DEFMODE,
+    revision:JSON.stringify([a.at,a.addr,a.travelMin,S.travelOverrides&&S.travelOverrides[a.id],a.subs||[],S.trial||null])};
+}
+function routeLeg(a,from,shared=false){
   const override=travelOverride(a,from);
   if(override!=null)return {min:override,km:null,source:'manual'};
   if(a.travelMin!=null)return {min:a.travelMin,km:null,source:'manual'};
+  if(!shared&&!IN_HS&&DEVICE_ROUTE){
+    try{const local=DEVICE_ROUTE(a,from);if(local)return local}catch(e){}
+  }
   const apple=macRoute(a,from);
   if(apple)return {...apple,source:'apple'};
   const estimate=legMin(from,a,a.mode);
@@ -1481,7 +1489,7 @@ function nlpPreview(R,kind){
 
 /* ================= 逆算の本体 ================= */
 /* forA を渡すと、その予定について計算する（同期の要約で2件目以降も出すため。ひらめきの試しは入れない） */
-function plan(forA){
+function plan(forA,shared=false){
   const now=new Date();
   const up=AN().filter(a=>!a.soft).map(a=>({...a,d:new Date(a.at)}))
     .filter(a=>!isNaN(a.d)&&a.d>now).sort((x,y)=>x.d-y.d);
@@ -1508,17 +1516,17 @@ function plan(forA){
     sum+=tv+work;
   }
   let toAnchor=0, anchorKm=null, anchorUnknown=false, byApple=null;
-  const route=hasPlace(A)?routeLeg(A,cur):null;
+  const route=hasPlace(A)?routeLeg(A,cur,shared):null;
   const travelSource=route?route.source:hasPlace(A)?'unknown':'none';
   if(hasPlace(A)){
     if(route){toAnchor=route.min;anchorKm=route.km;if(route.km)totalKm+=route.km;if(route.source==='apple')byApple=route}
     else anchorUnknown=true;
   }
-  const travelEstimated=travelSource==='estimate'||steps.some(x=>x.km!=null);
+  const travelEstimated=(travelSource==='estimate'||travelSource==='iphone_shortcuts')||steps.some(x=>x.km!=null);
   const buffer=S.buffer||0;
   /* 約束までに夜をまたぐなら、寝る時間も引く。1晩＝睡眠＋起きてからの余裕 */
-  const nights=S.sleepOn===false?0:nightsBetween(now,A.d);
-  const sleepMin=Math.round((S.sleepH||0)*60), sleepBuf=Math.round((S.sleepBufH||0)*60);
+  const nights=S.sleepOn===false&&travelSource!=='iphone_shortcuts'?0:nightsBetween(now,A.d);
+  const sleepMin=Math.round((travelSource==='iphone_shortcuts'?Math.max(7,S.sleepH||0):(S.sleepH||0))*60), sleepBuf=Math.round((S.sleepBufH||0)*60);
   const sleepPer=sleepMin+sleepBuf, sleepAll=nights*sleepPer;
   const need=sum+toAnchor+buffer+sleepAll;
   const slack=untilAnchor-need;
@@ -1878,12 +1886,12 @@ function renderNow(P){
     +'<div class="two" style="margin-top:8px">'
     +'<button class="btn sec" onclick="stashIdea()">サブ目標にする</button>'
     +'<button class="btn sec" onclick="dropTrial()">外す</button></div></div>';
-  const goMode=P.byApple?(MODES[P.byApple.mode]||MODES[DEFMODE]).n+'（Apple地図）':MODES[A.mode||DEFMODE].n+(P.travelSource==='manual'?'（手入力）':P.travelSource==='estimate'?'（概算・未確認）':'');
+  const goMode=P.byApple?(MODES[P.byApple.mode]||MODES[DEFMODE]).n+'（Apple地図）':MODES[A.mode||DEFMODE].n+(P.travelSource==='iphone_shortcuts'?'（このiPhone・Apple推定）':P.travelSource==='manual'?'（手入力）':P.travelSource==='estimate'?'（概算・未確認）':'');
   /* 見出しは「いま居る場所から直行なら何分」。帳簿の方は寄り道をつないだ実際の足し算。
      Mac が Apple の地図で「いま居る場所から」出した時間があればそれ（電車は時刻表どおり）、無ければ直線距離からの概算 */
   const goDirect=hasPlace(A)?routeLeg(A,S.here):null;
   const goModeHere=(goDirect&&goDirect.source==='apple'?(MODES[goDirect.mode]||MODES[DEFMODE]):MODES[A.mode||DEFMODE]).n+(goDirect&&goDirect.source==='apple'?'（Apple地図）'
-    :goDirect&&goDirect.source==='manual'?'（手入力）':'（直線から概算・未確認）');
+    :goDirect&&goDirect.source==='iphone_shortcuts'?'（このiPhone・Apple推定）':goDirect&&goDirect.source==='manual'?'（手入力）':'（直線から概算・未確認）');
   const goTag=goDirect
     ? ' <b style="color:#6aa9ff">🚶 ここから '+esc(goModeHere)+'で 約'+dur(goDirect.min)
       +(goDirect.km!=null?'（'+goDirect.km.toFixed(1)+'km'+(goDirect.source==='estimate'?'・補正距離／実経路ではない':'')+'）':'')+'</b>'
@@ -1899,7 +1907,7 @@ function renderNow(P){
     +'<button class="btn sec" onclick="editTravel(decodeURIComponent(\''+encodeURIComponent(A.id).replace(/'/g,'%27')+'\'))">移動時間を入力・変更</button>'
     +'<div class="big'+(late||travelProvisional?'':' ok')+'"><span class="pre">'+(late?'足りない':travelProvisional?'仮ののこり':'のこり')+'</span>'
     +(late?dur(-P.slack):dur(P.slack))+'</div>'
-    +(travelProvisional?'<div class="warn">⚠ 移動時間は未確認です。乗換・徒歩・待ち時間を調べていないため、この残り時間や出発時刻は仮です。</div>':'')
+    +(travelProvisional?'<div class="warn">'+(P.travelSource==='iphone_shortcuts'?'このiPhoneで取り込んだAppleの現在出発推定です。取得後5分で失効。将来の便・到着時刻は未確認です。</div>':'⚠ 移動時間は未確認です。乗換・徒歩・待ち時間を調べていないため、この残り時間や出発時刻は仮です。</div>'):'')
     +'<div class="sub">約束まで あと '+dur(P.untilAnchor)+'。'+(late
       ? 'どれか外すか、短くする。'
       : P.nights
@@ -3208,7 +3216,7 @@ function buildSummary(){
   const ideas=(S.ideas||[]).slice(0,8).map(I=>({title:I.title,min:I.min||null}));
   return {v:1,widgetV:2,genAt:Date.now(),buffer:S.buffer||0,sleepOn:S.sleepOn!==false,soft,ideas,
     sleepPer:Math.round(((S.sleepH||0)+(S.sleepBufH||0))*60),
-    items:up.map(a=>{const P=plan(a);const ok=hasPlace(a)&&!P.anchorUnknown;
+    items:up.map(a=>{const P=plan(a,true);const ok=hasPlace(a)&&!P.anchorUnknown;
       return {id:a.id,title:a.title||'予定',at:P.A.d.getTime(),hasPlace:hasPlace(a),job:a.job||null,dur:a.gmin||null,gcal:!!a.gcal,
         toAnchor:Math.round(P.toAnchor),travelSource:P.travelSource,travelEstimated:P.travelEstimated,routeUnknown:!!(P.anchorUnknown||P.steps.some(x=>x.unknown)),routeGot:P.byApple?P.byApple.got:null,leaveAt:ok?P.leaveAt.getTime():null,
         lat:a.lat,lng:a.lng,mode:a.mode||DEFMODE,tm:P.travelSource==='manual',
@@ -3293,6 +3301,26 @@ setInterval(()=>{const n=new Date();
 <script>
   // オフラインでも開けるようにする
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+<script type="module">
+import {mountTransitPanel} from './iphone-transit.mjs';
+mountTransitPanel({host:document.querySelector('main')||document.body,
+  setResolver:resolve=>{const account=syncKey;DEVICE_ROUTE=(a,from)=>account===syncKey&&from&&a&&(a.mode||DEFMODE)==='train'?resolve(deviceRouteScope(a,from)):null;render();},
+  onChange:()=>render(),
+  accountIdentity:async()=>{
+    const value=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(syncKey||'local-no-account'));
+    return Array.from(new Uint8Array(value),b=>b.toString(16).padStart(2,'0')).join('');
+  },
+  readContext:()=>{
+    const P=plan(null,true);if(!P.A||!hasPlace(P.A)||(P.A.mode||DEFMODE)!=='train')return null;
+    const via=P.steps.filter(x=>x.s.lat!=null).pop(),origin=via?via.s:S.here;
+    if(!origin||!Number.isFinite(origin.lat)||!Number.isFinite(origin.lng)||!Number.isFinite(P.A.lat)||!Number.isFinite(P.A.lng))return null;
+    return {label:(P.A.title||'予定')+' / '+P.fromNameToAnchor+' → '+(P.A.addr||P.A.title||'行先'),
+      scope:deviceRouteScope(P.A,origin),
+      manual:P.travelSource==='manual',unknown:P.steps.some(x=>x.unknown),work:P.sum,buffer:P.buffer,
+      sleep:P.nights*(Math.max(420,P.sleepMin)+P.sleepBuf)};
+  }
+});
 </script>
 </body>
 </html>
