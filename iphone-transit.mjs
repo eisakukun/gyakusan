@@ -1,6 +1,7 @@
-/* iPhoneだけで電車の時間を取る。ショートカット「逆算・交通時間」が Apple の「移動時間を取得（交通機関）」で
-   時間を出してクリップボードに入れる → このアプリに戻って1回押すと取り込む。
-   端末の中（localStorage）だけに置く。Mac・同期の棚・共有の要約には送らない。 */
+/* iPhoneだけで取った電車の時間まわり。
+   いまの主な道：ショートカット「逆算・自動取得」が同期の棚の iPhone 専用の置き場（iroutes）に置く → index.html が読む。
+   DeviceRoutes / parseReturn は、端末の中だけに置く古い取り込み方（照合の決まりごとはテストつきで残す）。
+   下の折り畳みは、オン／オフと、ショートカット・ウィジェット用のコピーだけ。 */
 import {durationMinutes} from './shortcut-duration.mjs';
 
 export const FRESH_MS=30*60000, STALE_MS=12*3600000, PENDING_MS=5*60000, ORIGIN_KM=0.3;
@@ -76,50 +77,36 @@ export class DeviceRoutes{
 }
 
 /* 設定の下の折り畳み。主画面のボタン（index.html）からも同じ DeviceRoutes を使う */
-export function mountTransitPanel({host,accountIdentity,readTarget,targetFor,inextURL=()=>'',onReady,onChange=()=>{}}){
+export function mountTransitPanel({host,accountIdentity,inextURL=()=>'',onReady,onChange=()=>{}}){
   const root=document.createElement('details');
   root.innerHTML='<summary>iPhoneの交通時間（この端末だけ）</summary>'
-    +'<p class="tiny">約束カードの「📍 iPhoneで電車の時間を取る」→ ショートカット「'+SHORTCUT_NAME+'」が動く → このアプリに戻って「📋 取ってきた時間を入れる」。結果はこの端末の中だけ。Mac・共有の要約・ウィジェットには送りません。</p>'
+    +'<p class="tiny">ショートカット「逆算・自動取得」が、決めた時刻（と 📍 を押したとき）に、次の約束までの電車の時間をこのiPhoneで取って同期の棚のiPhone専用の置き場に置きます。Macの時間とは別なので上書きし合いません。</p>'
     +'<label><input type="checkbox" data-enable> この端末の主カウントダウンに使う</label>'
-    +'<p class="tiny" style="margin-top:8px">ショートカットに渡す行き先の形（目的地にならないときだけ変える）</p>'
-    +'<select data-format><option value="maps">Appleマップのリンク</option><option value="latlng">緯度,経度</option><option value="addr">住所・名前の文字</option></select>'
-    +'<p class="tiny" data-last style="margin-top:8px"></p>'
-    +'<p class="tiny">戻っても取り込めないとき（Safariで開いた等）：ショートカットが出した時間をここに貼る</p>'
-    +'<input data-duration placeholder="例：1時間23分" aria-label="Appleの移動時間"> '
-    +'<button class="btn sec" data-import>取り込む</button> <button class="btn sec" data-clear>この端末の結果を消す</button>'
-    +'<p class="tiny" style="margin-top:10px">時刻のオートメーション用：ショートカットの最初の「URL」に貼るもの（同期の合言葉入り。人に渡さない）</p>'
+    +'<p class="tiny" style="margin-top:10px">ショートカットの最初の「URL」に貼るもの（同期の合言葉入り。人に渡さない）</p>'
     +'<button class="btn sec" data-inext>自動取得用のURLをコピー</button>'
+    +'<p class="tiny" style="margin-top:10px">ホーム画面のウィジェット（Scriptable）を新しくするとき</p>'
+    +'<button class="btn sec" data-widget>ウィジェット用のコードをコピー</button>'
     +'<p data-message role="status" class="tiny"></p>';
   host.append(root);
   const q=s=>root.querySelector(s),msg=q('[data-message]');
   accountIdentity().then(id=>{
     const routes=new DeviceRoutes({storage:localStorage,key:'gyakusan.iphone-routes.v2:'+id});
-    const enKey='gyakusan.iphone-enabled:'+id,fmKey='gyakusan.iphone-destfmt';
-    const api={routes,
-      enabled:()=>localStorage.getItem(enKey)==='true',
-      format:()=>localStorage.getItem(fmKey)||'maps',
-      /* 取り込むのは「📍を押した予定」。いまの一番上の予定が入れ替わっていても、その予定に戻す */
-      paste:text=>{const p=routes.load().pending;if(!p)throw Error('no-request');return routes.accept(text,targetFor(p.target.eventId))},
-      refresh};
+    const enKey='gyakusan.iphone-enabled:'+id;
+    const api={routes,enabled:()=>localStorage.getItem(enKey)==='true'};
     q('[data-enable]').checked=api.enabled();
-    q('[data-format]').value=api.format();
     q('[data-enable]').onchange=()=>{localStorage.setItem(enKey,String(q('[data-enable]').checked));onChange()};
-    q('[data-format]').onchange=()=>localStorage.setItem(fmKey,q('[data-format]').value);
-    q('[data-import]').onclick=()=>{try{const r=api.paste(q('[data-duration]').value);q('[data-duration]').value='';
-      msg.textContent='取り込みました：'+r.minutes+'分';onChange();refresh()}catch(e){msg.textContent='取り込めません：'+e.message}};
     q('[data-inext]').onclick=async()=>{const u=inextURL();if(!u){msg.textContent='先に同期の合言葉を入れてください';return}
       try{await navigator.clipboard.writeText(u);msg.textContent='コピーしました。ショートカットの「URL」に貼ってください'}catch{msg.textContent='コピーできませんでした'}};
-    q('[data-clear]').onclick=()=>{routes.clear();msg.textContent='消しました';onChange();refresh()};
-    function refresh(){
-      const tg=readTarget(),r=tg&&routes.last(tg.eventId);
-      q('[data-last]').textContent=r?'いまの約束：iPhoneで取った '+r.minutes+'分（'+Math.max(0,Math.floor((Date.now()-r.got)/60000))+'分前）':'いまの約束：iPhoneの結果はまだありません';
-    }
-    root.addEventListener('toggle',()=>{if(root.open)refresh()});
-    /* 昔の返却形式（URLの #gyakusanETA=）で戻ってきたとき */
-    if(location.hash.startsWith('#gyakusanETA=')){
-      const h=location.hash;try{history.replaceState(null,'',location.pathname+location.search)}catch{}
-      try{const r=api.paste(h);msg.textContent='取り込みました：'+r.minutes+'分'}catch(e){root.open=true;q('[data-duration]').value=h;msg.textContent='取り込めません：'+e.message}
-    }
-    onReady(api);refresh();
+    /* iPhoneのSafariは「押した直後」でないとコピーできないので、読み込みを待つ形（ClipboardItem）で渡す */
+    q('[data-widget]').onclick=async()=>{
+      const code=()=>fetch('widget/'+encodeURIComponent('逆算・自由時間')+'.js?t='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('fetch');return r.text()});
+      try{
+        if(window.ClipboardItem&&navigator.clipboard.write)
+          await navigator.clipboard.write([new ClipboardItem({'text/plain':code().then(t=>new Blob([t],{type:'text/plain'}))})]);
+        else await navigator.clipboard.writeText(await code());
+        msg.textContent='コピーしました。Scriptableの「逆算・自由時間」を開いて、中身を全部消してから貼ってください';
+      }catch{msg.textContent='コピーできませんでした（通信を確認）'}
+    };
+    onReady(api);
   });
 }

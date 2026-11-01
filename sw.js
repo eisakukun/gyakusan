@@ -1,6 +1,6 @@
 /* オフラインでも開けるようにする Service Worker。
    本体は通信優先（直したら次に開いたとき反映される）、圏外ならキャッシュから起動する。 */
-const CACHE = "gyakusan-pwa-iphone3";
+const CACHE = "gyakusan-pwa-iphone4";
 const SHELL = ["./iphone-transit.mjs", "./shortcut-duration.mjs", "./", "./index.html", "./manifest.webmanifest",
                "./icon-180.png", "./icon-192.png", "./icon-512.png"];
 

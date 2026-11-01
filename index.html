@@ -893,65 +893,20 @@ function routeLeg(a,from,shared=false){
   return estimate?{...estimate,source:'estimate'}:null;
 }
 /* ===== iPhoneだけで電車の時間を取る =====
-   📍 を押す → その場で GPS を取り直す（古い保存位置は使わない）→ ショートカット「逆算・交通時間」に行き先を渡す
-   → ショートカットが Apple の「移動時間を取得（交通機関）」の答えをクリップボードに入れる → 戻って 📋 で取り込む。
-   押した瞬間にクリップボードを「待っています」で上書きするので、前にコピーした時間を拾わない */
-const IPHONE_SHORTCUT='逆算・交通時間', IPHONE_MARK='逆算：交通時間を待っています';
-let iphoneBusy=false;
+   📍 を押す → ショートカット「逆算・自動取得」が動く（毎朝のオートメーションと同じもの）
+   → ショートカットが自分で次の約束の行き先を読み、iPhoneの現在地から電車の時間を取って、同期の棚のiPhone専用の置き場に置く
+   → このアプリに戻ると同期で読み込まれる（押すものはもう無い） */
+const IPHONE_SHORTCUT='逆算・自動取得';
 function iphoneCan(A){
   return !IN_HS&&!!IPHONE&&IPHONE.enabled()&&navigator.maxTouchPoints>0&&!!A&&hasPlace(A)
     &&Number.isFinite(A.lat)&&Number.isFinite(A.lng)&&(A.mode||DEFMODE)==='train';
 }
 function iphoneButtons(A,go){
   if(!iphoneCan(A)||(go&&go.source==='manual'))return '';   /* 手入力があるときは手入力が勝つ */
-  const p=IPHONE.routes.pending(), id=encodeURIComponent(A.id).replace(/'/g,'%27');
-  return (p&&p.target.eventId===A.id?'<button class="btn" onclick="iphoneRouteImport()">📋 取ってきた時間を入れる</button>':'')
-    +'<button class="btn sec" onclick="iphoneRouteStart(decodeURIComponent(\''+id+'\'))">'+(iphoneBusy?'📍 現在地を取得中…':'📍 iPhoneで電車の時間を取る')+'</button>';
+  return '<button class="btn sec" onclick="iphoneRouteStart()">📍 iPhoneで電車の時間を取り直す</button>';
 }
-function iphoneRouteStart(id){
-  const a=AN().find(x=>x.id===id); if(!a||!iphoneCan(a)||iphoneBusy)return;
-  if(!navigator.geolocation)return alert('この端末では現在地が取れません');
-  let cleared=Promise.resolve(false);
-  try{cleared=navigator.clipboard.writeText(IPHONE_MARK).then(()=>true,()=>false)}catch(e){}
-  iphoneBusy=true; render();
-  navigator.geolocation.getCurrentPosition(async p=>{
-    iphoneBusy=false;
-    const acc=Math.round(p.coords.accuracy);
-    if(acc>1000){render();return alert('現在地の誤差が ±'+acc+'m と大きいので止めました。外や窓ぎわでもう一度押してください。')}
-    S.here={lat:p.coords.latitude,lng:p.coords.longitude,acc,at:Date.now(),manual:false};
-    S.hereName='いまの場所（GPS）'; S.hereNameManual=false;
-    save();
-    reverseGeo(S.here.lat,S.here.lng).then(n=>{if(n&&S.here){S.here.label=n;S.hereName=n;save();render()}});
-    const tg=iphoneTarget(a);
-    try{IPHONE.routes.begin(tg,S.here,{cleared:await cleared})}catch(e){render();return alert('準備できません：'+e.message)}
-    render();
-    const text=IPHONE.destText(tg,IPHONE.format(),shortAddr(a.addr||'')||a.title);
-    location.href='shortcuts://run-shortcut?'+new URLSearchParams({name:IPHONE_SHORTCUT,input:'text',text}).toString().replace(/\+/g,'%20');
-  },e=>{
-    iphoneBusy=false; render();
-    alert('現在地が取れませんでした（'+(e.code===1?'位置情報が許可されていません':'時間内に取れませんでした')+'）。古い場所のままでは計算しません。');
-  },{enableHighAccuracy:true,timeout:15000,maximumAge:60000});
-}
-function iphoneErr(code,text){
-  const got=text?'\n\n受け取った文字：「'+String(text).slice(0,40)+'」':'';
-  return ({'not-returned':'まだショートカットの答えがクリップボードに入っていません。ショートカットが最後まで動いたか確認してください。',
-    'invalid-duration':'時間の形が読めませんでした（「1時間23分」の形だけ受け取ります）。'+got,
-    'invalid-return':'返ってきた文字が読めませんでした。'+got,
-    'expired-request':'📍 を押してから5分を過ぎたので取り込みませんでした。もう一度 📍 から。',
-    'changed-context':'その間に予定の時刻・行先が変わったので取り込みませんでした。もう一度 📍 から。',
-    'unmatched-return':'別の依頼の答えだったので取り込みませんでした。',
-    'ambiguous-duration':'時間が二通り入っていたので取り込みませんでした。',
-    'no-request':'取り込み待ちがありません。📍 から押してください。'})[code]||('取り込めませんでした：'+code+got);
-}
-async function iphoneRouteImport(){
-  const p=IPHONE&&IPHONE.routes.pending(); if(!p)return alert(iphoneErr(IPHONE&&IPHONE.routes.load().pending?'expired-request':'no-request'));
-  let text='';
-  try{text=await navigator.clipboard.readText()}
-  catch(e){return alert('クリップボードを読めませんでした。⚙設定の下「iPhoneの交通時間」の欄に、ショートカットが出した時間を貼って「取り込む」を押してください。')}
-  if(!p.cleared&&!/^\s*(#gyakusanETA=|\{)/.test(text)&&!confirm('「'+text.slice(0,30)+'」を、いま取った移動時間として入れますか？'))return;
-  try{const r=IPHONE.paste(text);toast('iPhoneで取った電車の時間 '+dur(r.minutes)+' を入れた（Apple地図）')}
-  catch(e){alert(iphoneErr(e.message,text))}
-  render();
+function iphoneRouteStart(){
+  location.href='shortcuts://run-shortcut?name='+encodeURIComponent(IPHONE_SHORTCUT);
 }
 function editTravel(id){
   const a=AN().find(x=>x.id===id);if(!a)return;
@@ -3007,7 +2962,7 @@ function planCommit(){
 const isoLocal=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-11-01-iphone3';
+const APP_VERSION='2026-11-01-iphone4';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
@@ -3400,17 +3355,14 @@ setInterval(()=>{const n=new Date();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 <script type="module">
-import {mountTransitPanel,destinationText} from './iphone-transit.mjs';
-const targetFor=id=>{const a=AN().find(x=>x.id===id);return a&&Number.isFinite(a.lat)&&Number.isFinite(a.lng)?iphoneTarget(a):null};
+import {mountTransitPanel} from './iphone-transit.mjs';
 mountTransitPanel({host:document.querySelector('main')||document.body,
   accountIdentity:async()=>{
     const value=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(syncKey||'local-no-account'));
     return Array.from(new Uint8Array(value),b=>b.toString(16).padStart(2,'0')).join('');
   },
-  readTarget:()=>{const P=plan();return P.A?targetFor(P.A.id):null},
-  targetFor,
   inextURL:()=>syncKey?SYNC_URL+'?op=inext&key='+encodeURIComponent(syncKey):'',
-  onReady:api=>{IPHONE={...api,destText:destinationText};render()},
+  onReady:api=>{IPHONE=api;render()},
   onChange:()=>render()
 });
 </script>
