@@ -844,22 +844,86 @@ function travelOverride(a,from){
   if(kmBetween(from,o.from)>1)return null;
   return o.min;
 }
-let DEVICE_ROUTE=null;
-function deviceRouteScope(a,from){
-  return {eventId:a.id,arriveAt:new Date(a.at).getTime(),origin:{lat:from.lat,lng:from.lng},destination:{lat:a.lat,lng:a.lng},mode:a.mode||DEFMODE,
-    revision:JSON.stringify([a.at,a.addr,a.travelMin,S.travelOverrides&&S.travelOverrides[a.id],a.subs||[],S.trial||null])};
+/* iPhoneだけで取った電車の時間（iphone-transit.mjs が入れる）。この端末の中だけ。共有の要約(shared)には使わない */
+let IPHONE=null;
+function iphoneTarget(a){return {eventId:a.id,arriveAt:new Date(a.at).getTime(),destination:{lat:a.lat,lng:a.lng},mode:a.mode||DEFMODE,addr:a.addr||''}}
+function iphoneRoute(a,from,shared){
+  if(shared||IN_HS||!IPHONE||!IPHONE.enabled()||!Number.isFinite(a.lat)||!Number.isFinite(a.lng))return null;
+  try{return IPHONE.routes.read(iphoneTarget(a),from)}catch(e){return null}
 }
 function routeLeg(a,from,shared=false){
   const override=travelOverride(a,from);
   if(override!=null)return {min:override,km:null,source:'manual'};
   if(a.travelMin!=null)return {min:a.travelMin,km:null,source:'manual'};
-  if(!shared&&!IN_HS&&DEVICE_ROUTE){
-    try{const local=DEVICE_ROUTE(a,from);if(local)return local}catch(e){}
-  }
+  /* 新しい順：iPhoneで取ったばかり → Macの Apple 地図 → 30分過ぎのiPhone（○分前と出す） → 直線の概算 */
+  const own=iphoneRoute(a,from,shared);
+  if(own&&!own.stale)return {min:own.min,km:null,source:'iphone_shortcuts',got:own.got,stale:false};
   const apple=macRoute(a,from);
   if(apple)return {...apple,source:'apple'};
+  if(own)return {min:own.min,km:null,source:'iphone_shortcuts',got:own.got,stale:true};
   const estimate=legMin(from,a,a.mode);
   return estimate?{...estimate,source:'estimate'}:null;
+}
+/* ===== iPhoneだけで電車の時間を取る =====
+   📍 を押す → その場で GPS を取り直す（古い保存位置は使わない）→ ショートカット「逆算・交通時間」に行き先を渡す
+   → ショートカットが Apple の「移動時間を取得（交通機関）」の答えをクリップボードに入れる → 戻って 📋 で取り込む。
+   押した瞬間にクリップボードを「待っています」で上書きするので、前にコピーした時間を拾わない */
+const IPHONE_SHORTCUT='逆算・交通時間', IPHONE_MARK='逆算：交通時間を待っています';
+let iphoneBusy=false;
+function iphoneCan(A){
+  return !IN_HS&&!!IPHONE&&IPHONE.enabled()&&navigator.maxTouchPoints>0&&!!A&&hasPlace(A)
+    &&Number.isFinite(A.lat)&&Number.isFinite(A.lng)&&(A.mode||DEFMODE)==='train';
+}
+function iphoneButtons(A,go){
+  if(!iphoneCan(A)||(go&&go.source==='manual'))return '';   /* 手入力があるときは手入力が勝つ */
+  const p=IPHONE.routes.pending(), id=encodeURIComponent(A.id).replace(/'/g,'%27');
+  return (p&&p.target.eventId===A.id?'<button class="btn" onclick="iphoneRouteImport()">📋 取ってきた時間を入れる</button>':'')
+    +'<button class="btn sec" onclick="iphoneRouteStart(decodeURIComponent(\''+id+'\'))">'+(iphoneBusy?'📍 現在地を取得中…':'📍 iPhoneで電車の時間を取る')+'</button>';
+}
+function iphoneRouteStart(id){
+  const a=AN().find(x=>x.id===id); if(!a||!iphoneCan(a)||iphoneBusy)return;
+  if(!navigator.geolocation)return alert('この端末では現在地が取れません');
+  let cleared=Promise.resolve(false);
+  try{cleared=navigator.clipboard.writeText(IPHONE_MARK).then(()=>true,()=>false)}catch(e){}
+  iphoneBusy=true; render();
+  navigator.geolocation.getCurrentPosition(async p=>{
+    iphoneBusy=false;
+    const acc=Math.round(p.coords.accuracy);
+    if(acc>1000){render();return alert('現在地の誤差が ±'+acc+'m と大きいので止めました。外や窓ぎわでもう一度押してください。')}
+    S.here={lat:p.coords.latitude,lng:p.coords.longitude,acc,at:Date.now(),manual:false};
+    S.hereName='いまの場所（GPS）'; S.hereNameManual=false;
+    save();
+    reverseGeo(S.here.lat,S.here.lng).then(n=>{if(n&&S.here){S.here.label=n;S.hereName=n;save();render()}});
+    const tg=iphoneTarget(a);
+    try{IPHONE.routes.begin(tg,S.here,{cleared:await cleared})}catch(e){render();return alert('準備できません：'+e.message)}
+    render();
+    const text=IPHONE.destText(tg,IPHONE.format(),shortAddr(a.addr||'')||a.title);
+    location.href='shortcuts://run-shortcut?'+new URLSearchParams({name:IPHONE_SHORTCUT,input:'text',text}).toString().replace(/\+/g,'%20');
+  },e=>{
+    iphoneBusy=false; render();
+    alert('現在地が取れませんでした（'+(e.code===1?'位置情報が許可されていません':'時間内に取れませんでした')+'）。古い場所のままでは計算しません。');
+  },{enableHighAccuracy:true,timeout:15000,maximumAge:60000});
+}
+function iphoneErr(code,text){
+  const got=text?'\n\n受け取った文字：「'+String(text).slice(0,40)+'」':'';
+  return ({'not-returned':'まだショートカットの答えがクリップボードに入っていません。ショートカットが最後まで動いたか確認してください。',
+    'invalid-duration':'時間の形が読めませんでした（「1時間23分」の形だけ受け取ります）。'+got,
+    'invalid-return':'返ってきた文字が読めませんでした。'+got,
+    'expired-request':'📍 を押してから5分を過ぎたので取り込みませんでした。もう一度 📍 から。',
+    'changed-context':'その間に予定の時刻・行先が変わったので取り込みませんでした。もう一度 📍 から。',
+    'unmatched-return':'別の依頼の答えだったので取り込みませんでした。',
+    'ambiguous-duration':'時間が二通り入っていたので取り込みませんでした。',
+    'no-request':'取り込み待ちがありません。📍 から押してください。'})[code]||('取り込めませんでした：'+code+got);
+}
+async function iphoneRouteImport(){
+  const p=IPHONE&&IPHONE.routes.pending(); if(!p)return alert(iphoneErr(IPHONE&&IPHONE.routes.load().pending?'expired-request':'no-request'));
+  let text='';
+  try{text=await navigator.clipboard.readText()}
+  catch(e){return alert('クリップボードを読めませんでした。⚙設定の下「iPhoneの交通時間」の欄に、ショートカットが出した時間を貼って「取り込む」を押してください。')}
+  if(!p.cleared&&!/^\s*(#gyakusanETA=|\{)/.test(text)&&!confirm('「'+text.slice(0,30)+'」を、いま取った移動時間として入れますか？'))return;
+  try{const r=IPHONE.paste(text);toast('iPhoneで取った電車の時間 '+dur(r.minutes)+' を入れた（Apple地図）')}
+  catch(e){alert(iphoneErr(e.message,text))}
+  render();
 }
 function editTravel(id){
   const a=AN().find(x=>x.id===id);if(!a)return;
@@ -1522,7 +1586,7 @@ function plan(forA,shared=false){
     if(route){toAnchor=route.min;anchorKm=route.km;if(route.km)totalKm+=route.km;if(route.source==='apple')byApple=route}
     else anchorUnknown=true;
   }
-  const travelEstimated=(travelSource==='estimate'||travelSource==='iphone_shortcuts')||steps.some(x=>x.km!=null);
+  const travelEstimated=(travelSource==='estimate'||(travelSource==='iphone_shortcuts'&&route.stale))||steps.some(x=>x.km!=null);
   const buffer=S.buffer||0;
   /* 約束までに夜をまたぐなら、寝る時間も引く。1晩＝睡眠＋起きてからの余裕 */
   const nights=S.sleepOn===false&&travelSource!=='iphone_shortcuts'?0:nightsBetween(now,A.d);
@@ -1533,7 +1597,7 @@ function plan(forA,shared=false){
   const leaveAt=plus(A.d,-(toAnchor+buffer));          /* 出発（場所が無ければ動き出す）時刻 */
   const bedAt=nights?plus(leaveAt,-sleepPer):null;      /* 前の晩、遅くともこの時刻に寝る */
   const wakeAt=nights?plus(bedAt,sleepMin):null;
-  return {now,A,up,untilAnchor,subs,active,steps,sum,toAnchor,anchorKm,anchorUnknown,totalKm,byApple,travelSource,travelEstimated,
+  return {now,A,up,untilAnchor,subs,active,steps,sum,toAnchor,anchorKm,anchorUnknown,totalKm,byApple,travelSource,travelEstimated,travelRoute:route,
           fromNameToAnchor:curName,buffer,need,slack,startBy:plus(A.d,-need),
           nights,sleepMin,sleepBuf,sleepPer,sleepAll,leaveAt,bedAt,wakeAt};
 }
@@ -1886,12 +1950,12 @@ function renderNow(P){
     +'<div class="two" style="margin-top:8px">'
     +'<button class="btn sec" onclick="stashIdea()">サブ目標にする</button>'
     +'<button class="btn sec" onclick="dropTrial()">外す</button></div></div>';
-  const goMode=P.byApple?(MODES[P.byApple.mode]||MODES[DEFMODE]).n+'（Apple地図）':MODES[A.mode||DEFMODE].n+(P.travelSource==='iphone_shortcuts'?'（このiPhone・Apple推定）':P.travelSource==='manual'?'（手入力）':P.travelSource==='estimate'?'（概算・未確認）':'');
+  const goMode=P.byApple?(MODES[P.byApple.mode]||MODES[DEFMODE]).n+'（Apple地図）':MODES[A.mode||DEFMODE].n+(P.travelSource==='iphone_shortcuts'?'（このiPhone・Apple地図'+(P.travelRoute.stale?'・'+Math.floor((Date.now()-P.travelRoute.got)/60000)+'分前':'')+'）':P.travelSource==='manual'?'（手入力）':P.travelSource==='estimate'?'（概算・未確認）':'');
   /* 見出しは「いま居る場所から直行なら何分」。帳簿の方は寄り道をつないだ実際の足し算。
      Mac が Apple の地図で「いま居る場所から」出した時間があればそれ（電車は時刻表どおり）、無ければ直線距離からの概算 */
   const goDirect=hasPlace(A)?routeLeg(A,S.here):null;
   const goModeHere=(goDirect&&goDirect.source==='apple'?(MODES[goDirect.mode]||MODES[DEFMODE]):MODES[A.mode||DEFMODE]).n+(goDirect&&goDirect.source==='apple'?'（Apple地図）'
-    :goDirect&&goDirect.source==='iphone_shortcuts'?'（このiPhone・Apple推定）':goDirect&&goDirect.source==='manual'?'（手入力）':'（直線から概算・未確認）');
+    :goDirect&&goDirect.source==='iphone_shortcuts'?'（このiPhone・Apple地図）':goDirect&&goDirect.source==='manual'?'（手入力）':'（直線から概算・未確認）');
   const goTag=goDirect
     ? ' <b style="color:#6aa9ff">🚶 ここから '+esc(goModeHere)+'で 約'+dur(goDirect.min)
       +(goDirect.km!=null?'（'+goDirect.km.toFixed(1)+'km'+(goDirect.source==='estimate'?'・補正距離／実経路ではない':'')+'）':'')+'</b>'
@@ -1903,11 +1967,13 @@ function renderNow(P){
     +(A.addr?' ・'+esc(shortAddr(A.addr)):'')+'）まで'
     +goTag+'</div>'
     +(goDirect&&goDirect.source==='apple'?'<div class="tiny">Apple経路の取得 '+Math.max(0,Math.floor((Date.now()-goDirect.got)/60000))+'分前・30分で再確認</div>':'')
+    +(goDirect&&goDirect.source==='iphone_shortcuts'?'<div class="tiny">このiPhoneで取得 '+Math.max(0,Math.floor((Date.now()-goDirect.got)/60000))+'分前'+(goDirect.stale?'・30分を過ぎたので取り直すと確実':'・30分で再確認')+'</div>':'')
     +(hasPlace(A)&&(!goDirect||goDirect.source==='estimate')?'<div class="warn">'+esc((S.travelOverrides||{})[A.id]?'手入力の条件（日時・行先・出発点）が変わり無効になりました。再入力してください。':routeIssue(A,S.here))+'</div>':'')
     +'<button class="btn sec" onclick="editTravel(decodeURIComponent(\''+encodeURIComponent(A.id).replace(/'/g,'%27')+'\'))">移動時間を入力・変更</button>'
+    +iphoneButtons(A,goDirect)
     +'<div class="big'+(late||travelProvisional?'':' ok')+'"><span class="pre">'+(late?'足りない':travelProvisional?'仮ののこり':'のこり')+'</span>'
     +(late?dur(-P.slack):dur(P.slack))+'</div>'
-    +(travelProvisional?'<div class="warn">'+(P.travelSource==='iphone_shortcuts'?'このiPhoneで取り込んだAppleの現在出発推定です。取得後5分で失効。将来の便・到着時刻は未確認です。</div>':'⚠ 移動時間は未確認です。乗換・徒歩・待ち時間を調べていないため、この残り時間や出発時刻は仮です。</div>'):'')
+    +(travelProvisional?'<div class="warn">'+(P.travelSource==='iphone_shortcuts'?'⚠ このiPhoneで取った時間から'+Math.floor((Date.now()-P.travelRoute.got)/60000)+'分たっています。「📍 iPhoneで電車の時間を取る」で取り直してください。</div>':'⚠ 移動時間は未確認です。乗換・徒歩・待ち時間を調べていないため、この残り時間や出発時刻は仮です。</div>'):'')
     +'<div class="sub">約束まで あと '+dur(P.untilAnchor)+'。'+(late
       ? 'どれか外すか、短くする。'
       : P.nights
@@ -2160,6 +2226,7 @@ function addrLine(a){
   if(L){
     if(L.source==='manual')h+=' ／ <b>片道'+L.min+'分</b>（手入力）';
     else if(L.source==='apple')h+=' ／ <b>'+L.min+'分</b>（Apple地図）';
+    else if(L.source==='iphone_shortcuts')h+=' ／ <b>'+L.min+'分</b>（このiPhone・Apple地図'+(L.stale?'・'+Math.floor((Date.now()-L.got)/60000)+'分前':'')+'）';
     else h+=' ／ '+L.km.toFixed(1)+'km（補正距離・実経路ではない） → <b>約'+L.min+'分</b>（概算・未確認）';
   }else if(a.lat==null)h+=' ／ <span class="no">未検索（タップして入れ直す）</span>';
   else h+=' ／ <span class="no">現在地を取ると分数が出る</span>';
@@ -2912,7 +2979,7 @@ function planCommit(){
 const isoLocal=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-10-29-1';
+const APP_VERSION='2026-11-01-iphone2';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
@@ -3303,23 +3370,17 @@ setInterval(()=>{const n=new Date();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 <script type="module">
-import {mountTransitPanel} from './iphone-transit.mjs';
+import {mountTransitPanel,destinationText} from './iphone-transit.mjs';
+const targetFor=id=>{const a=AN().find(x=>x.id===id);return a&&Number.isFinite(a.lat)&&Number.isFinite(a.lng)?iphoneTarget(a):null};
 mountTransitPanel({host:document.querySelector('main')||document.body,
-  setResolver:resolve=>{const account=syncKey;DEVICE_ROUTE=(a,from)=>account===syncKey&&from&&a&&(a.mode||DEFMODE)==='train'?resolve(deviceRouteScope(a,from)):null;render();},
-  onChange:()=>render(),
   accountIdentity:async()=>{
     const value=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(syncKey||'local-no-account'));
     return Array.from(new Uint8Array(value),b=>b.toString(16).padStart(2,'0')).join('');
   },
-  readContext:()=>{
-    const P=plan(null,true);if(!P.A||!hasPlace(P.A)||(P.A.mode||DEFMODE)!=='train')return null;
-    const via=P.steps.filter(x=>x.s.lat!=null).pop(),origin=via?via.s:S.here;
-    if(!origin||!Number.isFinite(origin.lat)||!Number.isFinite(origin.lng)||!Number.isFinite(P.A.lat)||!Number.isFinite(P.A.lng))return null;
-    return {label:(P.A.title||'予定')+' / '+P.fromNameToAnchor+' → '+(P.A.addr||P.A.title||'行先'),
-      scope:deviceRouteScope(P.A,origin),
-      manual:P.travelSource==='manual',unknown:P.steps.some(x=>x.unknown),work:P.sum,buffer:P.buffer,
-      sleep:P.nights*(Math.max(420,P.sleepMin)+P.sleepBuf)};
-  }
+  readTarget:()=>{const P=plan();return P.A?targetFor(P.A.id):null},
+  targetFor,
+  onReady:api=>{IPHONE={...api,destText:destinationText};render()},
+  onChange:()=>render()
 });
 </script>
 </body>
