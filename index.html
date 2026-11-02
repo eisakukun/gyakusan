@@ -2962,7 +2962,7 @@ function planCommit(){
 const isoLocal=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
 
 /* ================= 版チェック ================= */
-const APP_VERSION='2026-11-01-iphone4';
+const APP_VERSION='2026-11-02-gloc1';
 (function(){const e=document.createElement('div');e.textContent='v'+APP_VERSION;
   e.style.cssText='text-align:center;color:#3d4652;font-size:10px;padding:6px 0 20px';
   document.querySelector('.wrap').appendChild(e)})();
@@ -3023,6 +3023,11 @@ function gLocOf(loc){
 /* 「カスティル渋谷, 日本、〒150-0011 東京都渋谷区東１丁目２２−６」→ 住所の部分、名前の部分、全体の順に試す */
 function gLocTries(loc){
   const parts=loc.split(/\s*[,，]\s*/).filter(Boolean), out=[];
+  /* 「アパホテル〈浅草 田原町駅前〉 東京都台東区西浅草1-2-3」のように名前と住所が空白でつながっていると、
+     どこにも当たらない。都道府県から後ろ（なければ住所らしい後ろの部分）を先に試す */
+  const pref=loc.match(/(北海道|東京都|京都府|大阪府|[一-龥]{2,3}県)[^,，]*$/);
+  if(pref&&pref.index>0)out.push(pref[0].trim());
+  else{const w=loc.split(/\s+/);for(let i=1;i<w.length;i++){const t=w.slice(i).join(' ');if(looksAddr(t)){out.push(t);break}}}
   if(parts.length>1){out.push(parts.slice(1).join(' '));out.push(parts[0])}
   out.push(loc);
   return [...new Set(out)];
@@ -3034,13 +3039,13 @@ async function geoGcal(){
     const locs=[...new Set(GEV.filter(e=>!e.allDay&&e.loc&&e.end>Date.now()).map(e=>e.loc.trim()))];
     for(const loc of locs){
       if(gLocOf(loc))continue;
-      const c=GLOC[loc]; if(c&&c.miss&&Date.now()-c.at<86400000)continue;
+      const c=GLOC[loc]; if(c&&c.miss&&c.v===2&&Date.now()-c.at<86400000)continue;   /* v2より前の「見つからない」は探し方が古いので探し直す */
       let r=null;
       for(const q of gLocTries(loc)){
         try{const g=await geocode(q); if(g&&!g.abroad){r={lat:g.lat,lng:g.lng,label:g.label,at:Date.now()};break}}catch(e){}
         await new Promise(k=>setTimeout(k,1100));   /* OSMは1秒に1回まで */
       }
-      GLOC[loc]=r||{miss:true,at:Date.now()}; if(r)got=true;
+      GLOC[loc]=r||{miss:true,at:Date.now(),v:2}; if(r)got=true;
       try{localStorage.setItem('gyakusan.gloc',JSON.stringify(GLOC))}catch(e){}
     }
   }finally{_gGeoBusy=false}
